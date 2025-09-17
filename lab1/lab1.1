@@ -1,0 +1,22 @@
+	AREA   seasea, CODE, READONLY
+	EXPORT  __main	
+__main   PROC
+	ldr r0,=mydata
+	movs r1,#10 ;counter
+	movs r2,#0 ;square
+	movs r4,#0 ;result
+loop
+	ldr r2,[r0]
+	muls r2,r2,r2
+	add r4,r2
+	adds r0,#4
+	subs r1,#1
+	beq Here
+	b loop
+
+Here	B	Here           ; Infinite loop to stop program execution
+	ENDP
+	align
+	AREA dataof1d,DATA,readonly
+mydata dcd 2,4,7,3,1,2,10,11,5,13
+	END                     ; End of assembly file
