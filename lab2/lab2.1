@@ -1,0 +1,55 @@
+//
+// GPIO_Keypad : 3x3 keypad input and control LEDs (or Relays)
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN
+
+// PA0,1,2,3,4,5 connected to 3x3 Keypad
+// PC12,13,14,15 connected to LEDs (or Relays)
+
+#include <stdio.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "Scankey.h"
+
+void Init_GPIO(void)
+{
+	  GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	  GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	  GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	  GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	  PC12=1; PC13=1; PC14=1; PC15=1;
+}
+
+void lightup(uint32_t number)
+{
+		PC12 = (number & 0x1)?0:1;
+		PC13 = (number & 0x2)?0:1; 
+		PC14 = (number & 0x4)?0:1; 
+		PC15 = (number & 0x8)?0:1; 	
+}
+
+int main(void)
+{
+	uint32_t i =0;
+	SYS_Init();
+	OpenKeyPad();
+	Init_GPIO();
+	uint32_t id[] = {1,4,8,0,0,6,1};
+
+ 	while(1) 
+  {
+		i=ScanKey();
+		switch(i) {
+			case 1 : lightup(id[i-1]); break;
+			case 2 : lightup(id[i-1]); break;
+			case 3 : lightup(id[i-1]); break;
+			case 4 : lightup(id[i-1]); break;
+			case 5 : lightup(id[i-1]); break;
+			case 6 : lightup(id[i-1]); break;
+			case 7 : lightup(id[i-1]); break;
+			default: PC12=1; PC13=1; PC14=1; PC15=1; break;
+		}	
+	}
+}
