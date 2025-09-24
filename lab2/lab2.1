@@ -24,10 +24,20 @@ void Init_GPIO(void)
 
 void lightup(uint32_t number)
 {
-		PC12 = (number & 0x1)?0:1;
-		PC13 = (number & 0x2)?0:1; 
-		PC14 = (number & 0x4)?0:1; 
-		PC15 = (number & 0x8)?0:1; 	
+		if(number == 0)
+		{
+			PC15 = 0;
+			PC14 = 0;
+			PC13 = 0;
+			PC12 = 0;
+		}
+		else
+		{
+			PC15 = (number & 0x1)?0:1;
+			PC14 = (number & 0x2)?0:1; 
+			PC13 = (number & 0x4)?0:1; 
+			PC12 = (number & 0x8)?0:1; 	
+		}
 }
 
 int main(void)
