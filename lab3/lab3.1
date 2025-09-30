@@ -1,0 +1,56 @@
+//
+// GPIO_Buzzer: GPIO output to drive Buzzer
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN
+
+// PB11 : NUC140 LQFP100 pin48
+
+#include <stdio.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "Scankey.h"
+
+void Buzz(int number)
+{
+	int i;
+	for (i=0; i<number; i++) {
+      PB11=0; // PB11 = 0 to turn on Buzzer
+			CLK_SysTickDelay(100000);	 // Delay 
+			PB11=1; // PB11 = 1 to turn off Buzzer	
+			CLK_SysTickDelay(100000);	 // Delay 
+	}
+}
+
+void Init_GPIO(void)
+{
+	  GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	  GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	  GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	  GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	  PC12=1; PC13=1; PC14=1; PC15=1;
+}
+
+void show_binary(int number)
+{
+		PC15 = (number & 0x1)?0:1;
+		PC14 = (number & 0x2)?0:1;
+		PC13 = (number & 0x4)?0:1;
+		PC12 = (number & 0x8)?0:1;
+}
+
+int32_t main (void)
+{
+		int i;
+    SYS_Init();
+	
+	  GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+	
+	  while(1)
+		{
+				i = ScanKey();
+				show_binary(i);
+				Buzz(i);
+		}
+}
