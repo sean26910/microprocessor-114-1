@@ -40,6 +40,17 @@ void show_binary(int number)
 		PC12 = (number & 0x8)?0:1;
 }
 
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		prekey = presentkey;
+		return result;
+}
+
 int32_t main (void)
 {
 		int i;
@@ -49,7 +60,7 @@ int32_t main (void)
 	
 	  while(1)
 		{
-				i = ScanKey();
+				i = key_release();
 				show_binary(i);
 				Buzz(i);
 		}
