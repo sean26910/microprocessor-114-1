@@ -45,8 +45,11 @@ int key_release(void)
 		static int prekey = 0;
 		int presentkey = 0,result = 0;
 		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
 		if(prekey!=0 && presentkey==0)
 			result = prekey;
+		else
+			result = 0;
 		prekey = presentkey;
 		return result;
 }
