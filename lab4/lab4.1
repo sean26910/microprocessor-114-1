@@ -35,9 +35,16 @@ void Display_7seg(uint16_t value)
 	ShowSevenSegment(0,digit);
 	CLK_SysTickDelay(5000);
 }
-void display_two_digit(int value)
+void display_two_digit(int value,int remain)
 {
 	int digit;
+	if(remain==-1)
+		CloseSevenSegment();
+	else
+	{
+		ShowSevenSegment(3,remain);
+		CLK_SysTickDelay(5000);
+	}
 	digit = value / 10;
 	CloseSevenSegment();
 	ShowSevenSegment(1,digit);
@@ -52,25 +59,27 @@ void display_two_digit(int value)
 
 void mode(int key,int number)
 {
+	int value;
 	if(key == 9)
 		CloseSevenSegment();
 	else if(key == 3)
-		display_two_digit(number);
+		display_two_digit(number,-1);
 	else if(key == 1)
 	{
-		display_two_digit(number);
-		ShowSevenSegment(3,number%2);
+		value = number%2;
+		display_two_digit(number,value);
 	}
 	else if(key == 4)
 	{
-		display_two_digit(number);
-		ShowSevenSegment(3,number%3);
+		value = number%3;
+		display_two_digit(number,value);
 	}
 	else if(key == 7)
 	{
-		display_two_digit(number);
-		ShowSevenSegment(3,number%5);
+		value = number%5;
+		display_two_digit(number,value);
 	}
+	CloseSevenSegment();
 }
 
 int main(void)
@@ -84,7 +93,7 @@ int main(void)
 
  	while(1) 
 	{
-		key = Scankey();
+		key = ScanKey();
 		if(key!=0)
 		{
 			lastpressed = key;
@@ -93,5 +102,6 @@ int main(void)
 				value = rand()%100;
 		}
 		mode(lastpressed,value);
+		CLK_SysTickDelay(5000);
 	}	
 }
