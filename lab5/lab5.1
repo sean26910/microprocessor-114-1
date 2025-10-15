@@ -39,25 +39,25 @@ void Display_7seg(uint16_t value)
 	digit = value / 1000;
 	CloseSevenSegment();
 	ShowSevenSegment(3,digit);
-	CLK_SysTickDelay(5000);
+	CLK_SysTickDelay(3000);
 			
 	value = value - digit * 1000;
 	digit = value / 100;
 	CloseSevenSegment();
 	ShowSevenSegment(2,digit);
-	CLK_SysTickDelay(5000);
+	CLK_SysTickDelay(3000);
 
 	value = value - digit * 100;
 	digit = value / 10;
 	CloseSevenSegment();
 	ShowSevenSegment(1,digit);
-	CLK_SysTickDelay(5000);
+	CLK_SysTickDelay(3000);
 
 	value = value - digit * 10;
 	digit = value;
 	CloseSevenSegment();
 	ShowSevenSegment(0,digit);
-	CLK_SysTickDelay(5000);
+	CLK_SysTickDelay(3000);
 }
 
 int get_password()
@@ -70,36 +70,101 @@ int get_password()
 	return ans;
 }
 
+void Marquee()
+{
+	int i;
+	for(i=0;i<2;i++)
+	{
+		
+		PC12 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC12 = 1; PC13 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC13 = 1; PC14 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC14 = 1; PC15 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC15 = 1; PC14 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC14 = 1; PC13 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC13 = 1; PC12 = 0;
+		CLK_SysTickLongDelay(100000);
+		PC12 = 1; 
+		CLK_SysTickLongDelay(100000);
+	}
+}
+
 void mode(int key,int target)
 {
-	int n,st1,st2,st3,st4;
+	int n,st1,st2,st3,st4,check,i;
 	static int line = 0,charindex = 0;
-	static char password[4] = {' ',' ',' ',' '};
-	static char input[4] = {' ',' ',' ',' '};
-	if(key==7)
+	static char password[4] = {'0','0','0','0'};
+	static char input[4] = {'\0','\0','\0','\0'};
+	
+	n = target;
+	st1 = n/1000;
+	n%=1000;
+	st2 = n/100;
+	n%=100;
+	st3 = n/10;
+	n%=10;
+	st4 = n;
+	password[0] = st1+'0';
+	password[1] = st2+'0';
+	password[2] = st3+'0';
+	password[3] = st4+'0';
+	
+	if(key==8)
 	{
-		n = target;
-		
-	}
-	else if(key==8)
-	{
-		
+		clear_LCD();
+		line = 0;
+		charindex = 0;
 	}
 	else if(key==9)
 	{
-		
+		if(line<=3)
+		{
+			check = 1;
+			if(charindex==0)
+			{
+				printS(80,line*16,"NULL");
+			}
+			else
+			{
+				for(i=0;i<4;i++)
+				{
+					if(password[i] != input[i])
+					{
+						check = 0;
+						break;
+					}
+				}
+				if(check)
+				{
+					printS(80,line*16,"PASS");
+					Marquee();
+				}
+				else
+				{
+					printS(80,line*16,"ERROR");
+					Buzz(1);
+				}
+			}
+			charindex = 0;
+			line++;
+		}
 	}
 	else if(key>=1 && key<=6)
 	{
 		if(charindex<4)
 		{	
-			sprintf(password+charindex,"%d",key);
+			sprintf(input+charindex,"%d",key);
 			charindex++;
-			print_Line(line,password);
+			print_Line(line,input);
 		}
 	}
-	Display_7seg(target);
-	CLK_SysTickDelay(2000);
+	CLK_SysTickDelay(3000);
 }
 
 int key_release(void)
@@ -119,17 +184,18 @@ int key_release(void)
 int main(void)
 {
 	char Text[16] = "keypad:         ";
-	int count = 0,line = 0,key,lastpressed,value;
+	int count = 0,line = 0,key,lastpressed,value=0;
 	uint8_t keyin;
 	Init_GPIO();
 	SYS_Init();
 	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
 	OpenSevenSegment();
+	CloseSevenSegment();
 	init_LCD();
 	clear_LCD();
 	
 	OpenKeyPad();	              // initialize 3x3 keypad
-	print_Line(0,"LCD_Keypad"); // print title
+	
 	 
 	while(1)
 	{
@@ -138,13 +204,11 @@ int main(void)
 		{
 			lastpressed = key;
 			srand(count++);
-			if(key==3)
+			if(key==7)
 				value = get_password();
 		}
-		
-		mode(lastpressed,value);
-		CLK_SysTickDelay(5000);
+		Display_7seg(value);
+		mode(key,value);
+		CLK_SysTickDelay(3000);
 	}
 }
-
-
