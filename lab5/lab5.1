@@ -1,1 +1,150 @@
+//
+// LCD_keypad : 3x3 keypad input and display on LCD
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN  (LQPF-100)
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+
+void Buzz(int number)
+{
+	int i;
+	for (i=0; i<number; i++) {
+      PB11=0; // PB11 = 0 to turn on Buzzer
+	  CLK_SysTickDelay(100000);	 // Delay 
+	  PB11=1; // PB11 = 1 to turn off Buzzer	
+	  CLK_SysTickDelay(100000);	 // Delay 
+	}
+}
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+}
+
+void Display_7seg(uint16_t value)
+{
+  uint8_t digit;
+	digit = value / 1000;
+	CloseSevenSegment();
+	ShowSevenSegment(3,digit);
+	CLK_SysTickDelay(5000);
+			
+	value = value - digit * 1000;
+	digit = value / 100;
+	CloseSevenSegment();
+	ShowSevenSegment(2,digit);
+	CLK_SysTickDelay(5000);
+
+	value = value - digit * 100;
+	digit = value / 10;
+	CloseSevenSegment();
+	ShowSevenSegment(1,digit);
+	CLK_SysTickDelay(5000);
+
+	value = value - digit * 10;
+	digit = value;
+	CloseSevenSegment();
+	ShowSevenSegment(0,digit);
+	CLK_SysTickDelay(5000);
+}
+
+int get_password()
+{
+	int i,ans = 0;
+	ans+=1000*(rand()%6+1);
+	ans+=100*(rand()%6+1);
+	ans+=10*(rand()%6+1);
+	ans+=(rand()%6+1);
+	return ans;
+}
+
+void mode(int key,int target)
+{
+	int n,st1,st2,st3,st4;
+	static int line = 0,charindex = 0;
+	static char password[4] = {' ',' ',' ',' '};
+	static char input[4] = {' ',' ',' ',' '};
+	if(key==7)
+	{
+		n = target;
+		
+	}
+	else if(key==8)
+	{
+		
+	}
+	else if(key==9)
+	{
+		
+	}
+	else if(key>=1 && key<=6)
+	{
+		if(charindex<4)
+		{	
+			sprintf(password+charindex,"%d",key);
+			charindex++;
+			print_Line(line,password);
+		}
+	}
+	Display_7seg(target);
+	CLK_SysTickDelay(2000);
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+int main(void)
+{
+	char Text[16] = "keypad:         ";
+	int count = 0,line = 0,key,lastpressed,value;
+	uint8_t keyin;
+	Init_GPIO();
+	SYS_Init();
+	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+	OpenSevenSegment();
+	init_LCD();
+	clear_LCD();
+	
+	OpenKeyPad();	              // initialize 3x3 keypad
+	print_Line(0,"LCD_Keypad"); // print title
+	 
+	while(1)
+	{
+	  key	= key_release();
+		if(key!=0)
+		{
+			lastpressed = key;
+			srand(count++);
+			if(key==3)
+				value = get_password();
+		}
+		
+		mode(lastpressed,value);
+		CLK_SysTickDelay(5000);
+	}
+}
+
 
