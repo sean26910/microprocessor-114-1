@@ -20,6 +20,17 @@ void Init_GPIO(void)
 	PA12=1;
 	PA13=1;
 	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+void Init_LED(void)
+{
+	
 }
 
 void Display_7seg(int input,char label)
