@@ -174,10 +174,9 @@ int main(void)
 	CloseSevenSegment();
 	init_LCD();
 	clear_LCD();
-	
 	OpenKeyPad();	              // initialize 3x3 keypad
 	
-	 
+	DisplayBinary(value); 
 	while(1)
 	{
 	  key	= key_release();
@@ -186,21 +185,27 @@ int main(void)
 			srand(count++);
 			case 1:
 				push_right(&value,1);
+			  DisplayBinary(value);
 				break;
 			case 2:
 				value = rand()%256;
+				DisplayBinary(value);
 				break;
 			case 3:
 				push_left(&value,1);
+				DisplayBinary(value);
 				break;
 			case 4:
 				push_right(&value,0);
+				DisplayBinary(value);
 				break;
 			case 5:
 				value = 0;
+				DisplayBinary(value);
 				break;
 			case 6:
 				push_left(&value,0);
+				DisplayBinary(value);
 				break;
 			case 7:
 				mode = 'u';
@@ -212,8 +217,7 @@ int main(void)
 				mode = 'x';
 				break;
 		}
-		DisplayBinary(value);
 		Displaynumber(value,mode);
-		CLK_SysTickDelay(5000);
+		CLK_SysTickDelay(2000);
 	}
 }
