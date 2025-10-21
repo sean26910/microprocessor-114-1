@@ -1,1 +1,297 @@
+//
+// LCD_keypad : 3x3 keypad input and display on LCD
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN  (LQPF-100)
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
 
+struct State
+{
+	int line1_choose,line2_choose,line3_choose,line4_choose;
+	int step;
+	int st[20];//store sum ¤£¦Pµ²ªG
+	int led[20];//store led ¤£¦Pª¬ºA
+	int arrow[20]; // arrow «ü¦V¦ì¸m
+};
+
+void Buzz(int number)
+{
+	int i;
+	for (i=0; i<number; i++) {
+      PB11=0; // PB11 = 0 to turn on Buzzer
+	  CLK_SysTickDelay(100000);	 // Delay 
+	  PB11=1; // PB11 = 1 to turn off Buzzer	
+	  CLK_SysTickDelay(100000);	 // Delay 
+	}
+}
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+void control_led_buzz(struct State ts)
+{
+	PC12=1;PC13=1;PC14=1;PC15=1;
+	switch(ts.led[ts.step])
+	{
+		case 1:
+			PC12=0;
+			break;
+		case 2:
+			PC12=0;PC13=0;
+			break;
+		case 3:
+			PC12=0;PC13=0;PC14=0;
+			break;
+		case 4:
+			PC12=0;PC13=0;PC14=0;PC15=0;
+			break;
+			
+	}
+}
+
+void initial_structure(struct State* ts)
+{
+	int i;
+	ts->line1_choose = 0;
+	ts->line2_choose = 0;
+	ts->line3_choose = 0;
+	ts->line4_choose = 0;
+	ts->step=0;
+	for(i=0;i<20;i++)
+	{
+		ts->led[i]=0;
+		ts->st[i]=0;
+		ts->arrow[i]=0;
+	}
+}
+
+void mode_write(int arrow,int nowsum,struct State* ts,int* stor)
+{
+	switch(arrow)
+	{
+		case 1:
+			if(ts->line1_choose<4)
+			{
+				nowsum += stor[arrow-1];
+				ts->line1_choose++;
+				ts->step++;
+				ts->arrow[ts->step]=1;
+				ts->st[ts->step] = nowsum;
+				ts->led[ts->step] = ts->line1_choose;
+				//Buzz(1);
+			}
+			break;
+		case 2:
+			if(ts->line2_choose<4)
+			{
+				nowsum += stor[arrow-1];
+				ts->line2_choose++;
+				ts->step++;
+				ts->arrow[ts->step]=2;
+				ts->st[ts->step] = nowsum;
+				ts->led[ts->step] = ts->line2_choose;
+				//Buzz(1);
+			}
+			break;
+		case 3:
+			if(ts->line3_choose<4)
+			{
+				nowsum += stor[arrow-1];
+				ts->line3_choose++;
+				ts->step++;
+				ts->arrow[ts->step]=3;
+				ts->st[ts->step] = nowsum;
+				ts->led[ts->step] = ts->line3_choose;
+				//Buzz(1);
+			}
+			break;
+		case 4:
+			if(ts->line4_choose<4)
+			{
+				nowsum += stor[arrow-1];
+				ts->line4_choose++;
+				ts->step++;
+				ts->arrow[ts->step]=4;
+				ts->st[ts->step] = nowsum;
+				ts->led[ts->step] = ts->line4_choose;
+				//Buzz(1);
+			}
+			break;
+	}
+}
+
+void mode_back(struct State *ts)
+{
+	switch(ts->arrow[ts->step])
+	{
+		case 1:
+			ts->line1_choose--;
+			break;
+		case 2:
+			ts->line2_choose--;
+			break;
+		case 3:
+			ts->line3_choose--;
+			break;
+		case 4:
+			ts->line4_choose--;
+			break;
+	}
+	ts->step--;
+}
+
+int main(void)
+{
+	struct State ts;
+	int seed=0,key,arrowpos=1,i,sum=0;
+	int stor[4]={0};
+	char message[100];
+	Init_GPIO();
+	SYS_Init();
+	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+	OpenSevenSegment();
+	CloseSevenSegment();
+	init_LCD();
+	clear_LCD();
+	OpenKeyPad();	              // initialize 3x3 keypad
+	initial_structure(&ts);
+	//struct State
+	//{
+	//	int line1_choose,line2_choose,line3_choose,line4_choose;
+	//	int step;
+	//	int st[20];//store sum ¤£¦Pµ²ªG
+	//	int led[20];//store led ¤£¦Pª¬ºA
+	//	int arrow[20]; // arrow «ü¦V¦ì¸m
+	//};
+	while(1)
+	{
+		srand(seed++);
+		key = key_release();
+		switch(key)
+		{
+			case 4:
+				if(arrowpos>0)
+				{
+					printC(0,arrowpos*16,' ');
+					arrowpos = (arrowpos-1)%4;
+					if(arrowpos==1)
+					{
+						sprintf(message," %d",stor[0]);
+						print_Line(1,message);
+						sprintf(message," %d",stor[1]);
+						print_Line(2,message);
+						sprintf(message," %d",stor[2]);
+						print_Line(3,message);
+					}
+					if(arrowpos==3 || arrowpos==4)
+						printC(0,3*16,'>');
+					else
+						printC(0,arrowpos*16,'>');
+				}
+				if(arrowpos<=0)
+						arrowpos = 1;
+				break;
+			case 5:
+				mode_write(arrowpos,sum,&ts,stor);
+				sum = ts.st[ts.step];
+				sprintf(message," SUM = %d",sum);
+				print_Line(0,message);
+				control_led_buzz(ts);
+				break;
+			case 6:
+				if(arrowpos<=4)
+				{
+					printC(0,arrowpos*16,' ');
+					arrowpos = (arrowpos%4)+1;
+					if(arrowpos==4)
+					{
+						sprintf(message," %d",stor[1]);
+						print_Line(1,message);
+						sprintf(message," %d",stor[2]);
+						print_Line(2,message);
+						sprintf(message," %d",stor[3]);
+						print_Line(3,message);
+					}
+					if(arrowpos==3 || arrowpos==4)
+						printC(0,3*16,'>');
+					else
+						printC(0,arrowpos*16,'>');
+				}
+				if(arrowpos>=5)
+					arrowpos = 4;
+				break;
+			case 7:
+				initial_structure(&ts);
+				arrowpos = 1;
+				sum=0;
+				for(i=0;i<4;i++)
+					stor[i] = (rand()%90)+10;
+				sprintf(message," SUM = %d",sum);
+				print_Line(0,message);
+				sprintf(message," %d",stor[0]);
+				print_Line(1,message);
+				printC(0,arrowpos*16,'>');
+				sprintf(message," %d",stor[1]);
+				print_Line(2,message);
+				sprintf(message," %d",stor[2]);
+				print_Line(3,message);
+				break;
+			case 8:
+				mode_back(&ts);
+				sum = ts.st[ts.step];
+				sprintf(message," SUM = %d",sum);
+				control_led_buzz(ts);
+				print_Line(0,message);
+				break;
+			case 9:
+				initial_structure(&ts);
+				arrowpos = 1;
+				sum = 0;
+				sprintf(message," SUM = %d",sum);
+				print_Line(0,message);
+				sprintf(message," %d",stor[0]);
+				print_Line(1,message);
+				printC(0,arrowpos*16,'>');
+				sprintf(message," %d",stor[1]);
+				print_Line(2,message);
+				sprintf(message," %d",stor[2]);
+				print_Line(3,message);
+				break;
+		}
+		CLK_SysTickDelay(2000);
+	}
+}
