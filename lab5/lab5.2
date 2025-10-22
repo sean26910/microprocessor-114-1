@@ -28,24 +28,20 @@ void Init_GPIO(void)
 	PC12=1;PC13=1;PC14=1;PC15=1;
 }
 
-void Init_LED(void)
-{
-	
-}
 
 void Display_7seg(int input,char label)
 {
-	int digit[4] = {0},leading,negative,negativeindex,i;
+	int digit[4] = {0},leading,negative,negativeindex,i,lock;
 	
 	if(label=='x')
 	{
 		CloseSevenSegment();
 		ShowSevenSegment(0,input%16);
-		CLK_SysTickDelay(5000);
+		CLK_SysTickDelay(2000);
 		input/=16;
 		CloseSevenSegment();
 		ShowSevenSegment(1,input);
-		CLK_SysTickDelay(5000);
+		CLK_SysTickDelay(2000);
 	}
 	else if(label == 'u')
 	{
@@ -59,19 +55,18 @@ void Display_7seg(int input,char label)
 		digit[0] = input;
 		for(i=3;i>=0;i--)
 		{
-			CLK_SysTickDelay(5000);
 			if(i!=0 && (digit[i]==0 && leading))
 				continue;
 			else
 				leading = 0;
-			
 			CloseSevenSegment();
 			ShowSevenSegment(i,digit[i]);
+			CLK_SysTickDelay(2000);
 		}
 	}
 	else if(label == 's')
 	{
-		leading = 1,negative = 0;
+		lock = 1,leading = 1,negative = 0;
 		if(input<0)
 		{
 			negative = 1;
@@ -86,23 +81,27 @@ void Display_7seg(int input,char label)
 		digit[0] = input;
 		for(i=3;i>=0;i--)
 		{
-			CLK_SysTickDelay(5000);
 			if(i!=0 && (digit[i]==0 && leading))
 				continue;
 			else
 			{
-				leading = 0;
-				negativeindex = i+1;
+				if(lock)
+				{
+					leading = 0;
+					negativeindex = i+1;
+					lock = 0;
+				}
 			}
 			CloseSevenSegment();
 			ShowSevenSegment(i,digit[i]);
+			CLK_SysTickDelay(2000);
 		}
 		
 		if(negative)
 		{
-			CLK_SysTickDelay(5000);
 			CloseSevenSegment();
 			ShowSevenSegment(negativeindex,16);
+			CLK_SysTickDelay(2000);
 		}
 	}
 }
@@ -162,6 +161,34 @@ void DisplayBinary(int n)
 	}
 	print_Line(0,buf);
 }
+
+void Display_7seg1(uint16_t value)
+{
+  uint8_t digit;
+	digit = value / 1000;
+	CloseSevenSegment();
+	ShowSevenSegment(3,digit);
+	CLK_SysTickDelay(5000);
+			
+	value = value - digit * 1000;
+	digit = value / 100;
+	CloseSevenSegment();
+	ShowSevenSegment(2,digit);
+	CLK_SysTickDelay(5000);
+
+	value = value - digit * 100;
+	digit = value / 10;
+	CloseSevenSegment();
+	ShowSevenSegment(1,digit);
+	CLK_SysTickDelay(5000);
+
+	value = value - digit * 10;
+	digit = value;
+	CloseSevenSegment();
+	ShowSevenSegment(0,digit);
+	CLK_SysTickDelay(5000);
+}
+
 
 int main(void)
 {
