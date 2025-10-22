@@ -15,6 +15,7 @@
 struct State
 {
 	int line1_choose,line2_choose,line3_choose,line4_choose;
+	int choose;
 	int step;
 	int st[20];//store sum ¤£¦Pµ²ªG
 	int led[20];//store led ¤£¦Pª¬ºA
@@ -91,6 +92,7 @@ void initial_structure(struct State* ts)
 	ts->line3_choose = 0;
 	ts->line4_choose = 0;
 	ts->step=0;
+	ts->choose = 0;
 	for(i=0;i<20;i++)
 	{
 		ts->led[i]=0;
@@ -104,50 +106,58 @@ void mode_write(int arrow,int nowsum,struct State* ts,int* stor)
 	switch(arrow)
 	{
 		case 1:
-			if(ts->line1_choose<4)
+			if(ts->choose<4)
 			{
-				nowsum += stor[arrow-1];
+				Buzz(1);
+				ts->choose++;
+				nowsum = ts->st[ts->step]+stor[arrow-1];
 				ts->line1_choose++;
 				ts->step++;
 				ts->arrow[ts->step]=1;
 				ts->st[ts->step] = nowsum;
-				ts->led[ts->step] = ts->line1_choose;
+				ts->led[ts->step] = ts->choose;
 				//Buzz(1);
 			}
 			break;
 		case 2:
-			if(ts->line2_choose<4)
+			if(ts->choose<4)
 			{
-				nowsum += stor[arrow-1];
+				Buzz(1);
+				ts->choose++;
+				nowsum = ts->st[ts->step]+stor[arrow-1];
 				ts->line2_choose++;
 				ts->step++;
 				ts->arrow[ts->step]=2;
 				ts->st[ts->step] = nowsum;
-				ts->led[ts->step] = ts->line2_choose;
+				ts->led[ts->step] = ts->choose;
 				//Buzz(1);
 			}
 			break;
 		case 3:
-			if(ts->line3_choose<4)
+			if(ts->choose<4)
 			{
-				nowsum += stor[arrow-1];
+				Buzz(1);
+				ts->choose++;
+				nowsum = ts->st[ts->step]+stor[arrow-1];
 				ts->line3_choose++;
 				ts->step++;
 				ts->arrow[ts->step]=3;
 				ts->st[ts->step] = nowsum;
-				ts->led[ts->step] = ts->line3_choose;
+				ts->led[ts->step] = ts->choose;
 				//Buzz(1);
 			}
 			break;
 		case 4:
-			if(ts->line4_choose<4)
+			if(ts->choose<4)
 			{
-				nowsum += stor[arrow-1];
+				Buzz(1);
+				ts->choose++;
+				nowsum = ts->st[ts->step]+stor[arrow-1];
 				ts->line4_choose++;
 				ts->step++;
 				ts->arrow[ts->step]=4;
 				ts->st[ts->step] = nowsum;
-				ts->led[ts->step] = ts->line4_choose;
+				ts->led[ts->step] = ts->choose;
 				//Buzz(1);
 			}
 			break;
@@ -156,7 +166,10 @@ void mode_write(int arrow,int nowsum,struct State* ts,int* stor)
 
 void mode_back(struct State *ts)
 {
-	switch(ts->arrow[ts->step])
+	int idx = ts->step;
+	if(ts->step==0)
+			return;
+	switch(ts->arrow[idx])
 	{
 		case 1:
 			ts->line1_choose--;
@@ -171,13 +184,18 @@ void mode_back(struct State *ts)
 			ts->line4_choose--;
 			break;
 	}
+	ts->choose--;
+	ts->arrow[idx] = 0;
+	ts->st[idx]= 0;
+	ts->led[idx]=0;
 	ts->step--;
+	
 }
 
 int main(void)
 {
 	struct State ts;
-	int seed=0,key,arrowpos=1,i,sum=0;
+	int seed=0,key,arrowpos=1,i,sum=0,top_index=0;
 	int stor[4]={0};
 	char message[100];
 	Init_GPIO();
@@ -192,6 +210,7 @@ int main(void)
 	//struct State
 	//{
 	//	int line1_choose,line2_choose,line3_choose,line4_choose;
+	//  int choose;
 	//	int step;
 	//	int st[20];//store sum ¤£¦Pµ²ªG
 	//	int led[20];//store led ¤£¦Pª¬ºA
@@ -204,42 +223,46 @@ int main(void)
 		switch(key)
 		{
 			case 4:
-				if(arrowpos>0)
-				{
-					printC(0,arrowpos*16,' ');
-					arrowpos = (arrowpos-1)%4;
-					if(arrowpos==1)
-					{
-						sprintf(message," %d",stor[0]);
-						print_Line(1,message);
-						sprintf(message," %d",stor[1]);
-						print_Line(2,message);
-						sprintf(message," %d",stor[2]);
-						print_Line(3,message);
-					}
-					if(arrowpos==3 || arrowpos==4)
-						printC(0,3*16,'>');
+					if (arrowpos == 3 || arrowpos == 4)
+							printC(0, 3*16, ' ');
 					else
-						printC(0,arrowpos*16,'>');
-				}
-				if(arrowpos<=0)
-						arrowpos = 1;
+							printC(0, arrowpos*16, ' ');
+					if (arrowpos > 1) 
+						arrowpos--;  
+					else if(arrowpos==1)
+					{
+							sprintf(message," %d    ",stor[0]);
+							print_Line(1,message);
+							sprintf(message," %d",stor[1]);
+							print_Line(2,message);
+							sprintf(message," %d",stor[2]);
+							print_Line(3,message);
+					}
+					if (arrowpos == 3 || arrowpos == 4)
+								printC(0, 3*16, '>');
+					else
+							printC(0, arrowpos*16, '>');
 				break;
 			case 5:
 				mode_write(arrowpos,sum,&ts,stor);
 				sum = ts.st[ts.step];
 				sprintf(message," SUM = %d",sum);
 				print_Line(0,message);
+				
 				control_led_buzz(ts);
 				break;
 			case 6:
 				if(arrowpos<=4)
 				{
-					printC(0,arrowpos*16,' ');
-					arrowpos = (arrowpos%4)+1;
+					if(arrowpos==3 || arrowpos==4)
+						printC(0,3*16,' ');
+					else
+						printC(0,arrowpos*16,' ');
+					if(arrowpos!=4)
+						arrowpos = (arrowpos%4)+1;
 					if(arrowpos==4)
 					{
-						sprintf(message," %d",stor[1]);
+						sprintf(message," %d    ",stor[1]);
 						print_Line(1,message);
 						sprintf(message," %d",stor[2]);
 						print_Line(2,message);
@@ -260,7 +283,7 @@ int main(void)
 				sum=0;
 				for(i=0;i<4;i++)
 					stor[i] = (rand()%90)+10;
-				sprintf(message," SUM = %d",sum);
+				sprintf(message," SUM = %d   ",sum);
 				print_Line(0,message);
 				sprintf(message," %d",stor[0]);
 				print_Line(1,message);
@@ -273,7 +296,7 @@ int main(void)
 			case 8:
 				mode_back(&ts);
 				sum = ts.st[ts.step];
-				sprintf(message," SUM = %d",sum);
+				sprintf(message," SUM = %d    ",sum);
 				control_led_buzz(ts);
 				print_Line(0,message);
 				break;
@@ -281,7 +304,7 @@ int main(void)
 				initial_structure(&ts);
 				arrowpos = 1;
 				sum = 0;
-				sprintf(message," SUM = %d",sum);
+				sprintf(message," SUM = %d    ",0);
 				print_Line(0,message);
 				sprintf(message," %d",stor[0]);
 				print_Line(1,message);
@@ -290,6 +313,7 @@ int main(void)
 				print_Line(2,message);
 				sprintf(message," %d",stor[2]);
 				print_Line(3,message);
+				control_led_buzz(ts);
 				break;
 		}
 		CLK_SysTickDelay(2000);
