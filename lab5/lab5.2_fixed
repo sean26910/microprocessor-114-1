@@ -1,0 +1,260 @@
+//
+// LCD_keypad : 3x3 keypad input and display on LCD
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN  (LQPF-100)
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+
+void Display_7seg(int input,char label,int counter)
+{
+	int digit[4] = {0},negative,negativeindex,i,value;
+	static int leading=1,lock=1;
+	if(label=='x')
+	{
+		if(counter==0 || counter==2)
+		{
+			CloseSevenSegment();
+			ShowSevenSegment(0,input%16);
+			CLK_SysTickDelay(2000);
+		}
+		else
+		{
+			CloseSevenSegment();
+			ShowSevenSegment(0,input/16);
+			CLK_SysTickDelay(2000);
+		}
+	}
+	else if(label == 'u')
+	{
+		value = 3-counter;
+		digit[3] = input/1000;
+		input = input%1000;
+		digit[2] = input/100;
+		input = input%100;
+		digit[1] = input/10;
+		input = input%10;
+		digit[0] = input;
+		if(value!=0 && (digit[value]==0 && leading))
+			return;
+		else
+		{
+			if(value==0)
+				leading = 1;
+			leading = 0;
+			CloseSevenSegment();
+			ShowSevenSegment(i,digit[i]);
+			CLK_SysTickDelay(2000);
+		}
+	}
+	else if(label == 's')
+	{
+		value = 3-counter;
+		negative = 0;
+		if(input<0)
+		{
+			negative = 1;
+			input = -input;
+		}
+		digit[3] = input / 1000;
+		input %= 1000;
+		digit[2] = input / 100;
+		input %= 100;
+		digit[1] = input / 10;
+		input %= 10;
+		digit[0] = input;
+		if(value!=0 && (digit[value]==0 && leading))
+				return;
+		else
+		{
+			if(lock)
+			{
+				leading = 0;
+				negativeindex = value+1;
+				lock = 0;
+			}
+			if(value==0)
+			{
+				leading = 1;
+				lock = 1;
+			}
+			CloseSevenSegment();
+			ShowSevenSegment(i,digit[i]);
+			CLK_SysTickDelay(2000);
+		}
+		
+		if(negative)
+		{
+			CloseSevenSegment();
+			ShowSevenSegment(negativeindex,16);
+			CLK_SysTickDelay(2000);
+		}
+	}
+}
+
+void Displaynumber(uint8_t n,char mode,int counter)
+{
+	int value = 0;
+	switch(mode)
+	{
+		case 'u':
+			value = n;
+			Display_7seg(value,'u',counter);
+			break;
+		case 's':
+			value = (int8_t)n;
+			Display_7seg(value,'s',counter);
+			break;
+		case 'x':
+			value = n;
+			Display_7seg(value,'x',counter);
+			break;
+	}
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+void push_right(int *num,int bit)
+{
+	*num = (*num>>1) | (bit<<7);
+}
+
+void push_left(int *num,int bit)
+{
+	*num = (*num<<1) | (bit);
+}
+
+void DisplayBinary(int n)
+{
+	char buf[20];
+	int i;
+	sprintf(buf,"0b");
+	for(i=0;i<=7;i++)
+	{
+		sprintf(buf+i+2,"%d",(n>>(7-i)) & 1);
+	}
+	print_Line(0,buf);
+}
+
+void Display_7seg1(uint16_t value)
+{
+  uint8_t digit;
+	digit = value / 1000;
+	CloseSevenSegment();
+	ShowSevenSegment(3,digit);
+	CLK_SysTickDelay(5000);
+			
+	value = value - digit * 1000;
+	digit = value / 100;
+	CloseSevenSegment();
+	ShowSevenSegment(2,digit);
+	CLK_SysTickDelay(5000);
+
+	value = value - digit * 100;
+	digit = value / 10;
+	CloseSevenSegment();
+	ShowSevenSegment(1,digit);
+	CLK_SysTickDelay(5000);
+
+	value = value - digit * 10;
+	digit = value;
+	CloseSevenSegment();
+	ShowSevenSegment(0,digit);
+	CLK_SysTickDelay(5000);
+}
+
+
+int main(void)
+{
+	int count = 0,key,lastpressed,value=0,counter=0;
+	char mode = 'u';
+	Init_GPIO();
+	SYS_Init();
+	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+	OpenSevenSegment();
+	CloseSevenSegment();
+	init_LCD();
+	clear_LCD();
+	OpenKeyPad();	              // initialize 3x3 keypad
+	
+	DisplayBinary(value); 
+	while(1)
+	{
+	  key	= key_release();
+		switch(key)
+		{
+			srand(count++);
+			case 1:
+				push_right(&value,1);
+			  DisplayBinary(value);
+				break;
+			case 2:
+				value = rand()%256;
+				DisplayBinary(value);
+				break;
+			case 3:
+				push_left(&value,1);
+				DisplayBinary(value);
+				break;
+			case 4:
+				push_right(&value,0);
+				DisplayBinary(value);
+				break;
+			case 5:
+				value = 0;
+				DisplayBinary(value);
+				break;
+			case 6:
+				push_left(&value,0);
+				DisplayBinary(value);
+				break;
+			case 7:
+				mode = 'u';
+				break;
+			case 8:
+				mode = 's';
+				break;
+			case 9:
+				mode = 'x';
+				break;
+		}
+		Displaynumber(value,mode,counter);
+		counter = (counter+1)%4;
+		CLK_SysTickDelay(2000);
+	}
+}
