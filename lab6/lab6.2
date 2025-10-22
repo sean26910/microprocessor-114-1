@@ -12,6 +12,7 @@
 //display an integer on four 7-segment LEDs
 enum State{GREEN,YELLOW,RED};
 enum gostop{INIT,CAR_GREEN,CAR_YELLOW,CAR_RED,CAR_10RED,CAR_ENDED};
+int status = 0,step=0;
 
 unsigned char kirby_go[32*4]={
 	0x00,0xFE,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0xF2,0x0A,0x3A,0x02,0xEA,0x02,0xF2,0x0A,0x0A,0x0A,0xF2,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0x02,0xFE,0x00,
@@ -78,6 +79,7 @@ void TrafficSignal_countDown(struct TrafficSignal* ts)
 		switch(ts->gostate)
 		{
 			case INIT:
+				clear_LCD();
 				ts->state = GREEN;
 				ts->gostate = CAR_GREEN;
 				ts->timer = 5;
@@ -85,6 +87,7 @@ void TrafficSignal_countDown(struct TrafficSignal* ts)
 				draw_Bmp32x32(60,32,FG_COLOR,BG_COLOR,kirby_black_go);
 				break;
 			case CAR_GREEN:
+				clear_LCD();
 				ts->state = YELLOW;
 				ts->gostate = CAR_YELLOW;
 				ts->timer = 3;
@@ -92,6 +95,7 @@ void TrafficSignal_countDown(struct TrafficSignal* ts)
 				draw_Bmp32x32(60,32,FG_COLOR,BG_COLOR,kirby_black_go);
 				break;
 			case CAR_YELLOW:
+				clear_LCD();
 				ts->state = RED;
 				ts->gostate = CAR_RED;
 				ts->timer = 3;
@@ -99,6 +103,7 @@ void TrafficSignal_countDown(struct TrafficSignal* ts)
 				draw_Bmp32x32(60,32,FG_COLOR,BG_COLOR,kirby_black_go);
 				break;
 			case CAR_RED:
+				clear_LCD();
 				ts->state = RED;
 				ts->gostate = CAR_10RED;
 				draw_Bmp32x32(60,0,FG_COLOR,BG_COLOR,kirby_black_stop);
@@ -106,6 +111,7 @@ void TrafficSignal_countDown(struct TrafficSignal* ts)
 				ts->timer = 10;
 				break;
 			case CAR_10RED:
+				clear_LCD();
 				ts->state = RED;
 				ts->gostate = CAR_ENDED;
 				ts->timer = 3;
@@ -115,9 +121,9 @@ void TrafficSignal_countDown(struct TrafficSignal* ts)
 			case CAR_ENDED:
 				ts->state = YELLOW;
 				ts->gostate = INIT;
-				draw_Bmp32x32(60,0,FG_COLOR,BG_COLOR,kirby_stop);
-				draw_Bmp32x32(60,32,FG_COLOR,BG_COLOR,kirby_black_go);
 				ts->timer = 5;
+				status=1;
+				step=0;
 		}
 	}
 }
@@ -191,13 +197,13 @@ int get_key(void)
 //enum gostop{INIT,CAR_GREEN,CAR_YELLOW,CAR_RED,CAR_10RED,CAR_ENDED};
 void state_machine(struct TrafficSignal* ts,int step)
 {
-	static int status = 0;
 	switch(ts->gostate)
 	{
 		case INIT:
 			Display_7seg(0);
 			if(step==0 && status==0)
 			{
+				clear_LCD();
 				draw_Bmp32x32(60,0,FG_COLOR,BG_COLOR,kirby_stop);
 				draw_Bmp32x32(60,32,FG_COLOR,BG_COLOR,kirby_black_go);
 				status = (status+1)%2;
@@ -207,6 +213,7 @@ void state_machine(struct TrafficSignal* ts,int step)
 			}
 			else if(step==0 && status)
 			{
+				clear_LCD();
 				draw_Bmp32x32(60,0,FG_COLOR,BG_COLOR,kirby_black_stop);
 				draw_Bmp32x32(60,32,FG_COLOR,BG_COLOR,kirby_black_go);
 				status = (status+1)%2;
@@ -239,7 +246,7 @@ void state_machine(struct TrafficSignal* ts,int step)
 int main(void)
 {
 	struct TrafficSignal ts;
-	int step = 0,key,ste=0;
+	int key,ste=0,mod=50;
 	Init_GPIO();
 	SYS_Init();
 	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
@@ -255,9 +262,12 @@ int main(void)
 	{
 		if(ts.gostate == INIT)
 		{
+			mod=50;
 			key = get_key();
 			if(key==5)
 			{
+				mod=100;
+				clear_LCD();
 				ts.gostate = CAR_GREEN;
 				ts.state = GREEN;
 				draw_Bmp32x32(60,0,FG_COLOR,BG_COLOR,kirby_stop);
@@ -265,8 +275,8 @@ int main(void)
 				step=0;
 			}
 		}
-		step = (step+1)%100;
 		state_machine(&ts,step);//«G¨®½ø
+		step = (step+1)%mod;
 		if(ts.gostate!=INIT && step==0)
 			TrafficSignal_countDown(&ts);
 		CLK_SysTickDelay(2000);
