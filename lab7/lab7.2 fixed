@@ -88,6 +88,7 @@ void init_structure(struct ballstate *ts)
 void mode_change(struct ballstate* ts,int key,int count)
 {
 	int left_x,right_x,up_y,down_y;
+	static int redraw = 1;
 	if(ts->state == stop)
 	{
 		switch(key)
@@ -136,6 +137,7 @@ void mode_change(struct ballstate* ts,int key,int count)
 	
 	if(key==8)
 	{
+		redraw=1;
 		ts->co1=1;
 		ts->co2=1;
 		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
@@ -170,6 +172,14 @@ void mode_change(struct ballstate* ts,int key,int count)
 		ts->diry=-1;
 	}
 	
+	if(ts->state==move && count==24)
+  {
+	 draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+	 ts->x = ts->x + ts->dirx*ts->movx;
+	 ts->y = ts->y + ts->diry*ts->movy;
+	 draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+  }
+	
 	//rectangle collision
 	left_x = ts->x - ts->r;
 	right_x = ts->x + ts->r;
@@ -190,8 +200,9 @@ void mode_change(struct ballstate* ts,int key,int count)
 			fill_Rectangle(ts->rec1_stx, ts->rec1_sty, ts->rec1_endx, ts->rec1_endy, BG_COLOR, BG_COLOR);
 			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
 	}
-	if(ts->co1==0 && ts->co2==0)
+	if(ts->co1==0 && ts->co2==0 && redraw==1)
 	{
+			redraw=0;
 			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
 			ts->state = stop;
 			ts->dirx = 0;
@@ -225,13 +236,6 @@ int32_t main (void)
 			 counter = 0;
 		 mode_change(&ball,key,counter);
 		 counter = (counter+1)%25;
-		 if(ball.state==move && counter==24)
-		 {
-			draw_Circle(ball.x,ball.y,ball.r, BG_COLOR, BG_COLOR);
-			ball.x = ball.x + ball.dirx*ball.movx;
-			ball.y = ball.y + ball.diry*ball.movy;
-			draw_Circle(ball.x,ball.y,ball.r, FG_COLOR, BG_COLOR);
-		 }
 		 CLK_SysTickDelay(2000);
   }
 }
