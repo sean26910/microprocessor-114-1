@@ -143,8 +143,8 @@ void mode_change(struct ballstate* ts,int key,int count)
 		ts->rec_stx = rand()%64; ts->rec_sty=rand()%28;
 		ts->rec_endx=ts->rec_stx+5; ts->rec_endy=ts->rec_sty+5;
 		
-		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,FG_COLOR,BG_COLOR);
-		CLK_SysTickDelay(2000);
+		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,FG_COLOR,BG_COLOR); 
+		
 		fill_Rectangle(ts->rec1_stx,ts->rec1_sty,ts->rec1_endx,ts->rec1_endy,BG_COLOR,BG_COLOR);
 		
 		ts->rec1_stx = ts->rec_endx+((rand())%32)+20; ts->rec1_sty=rand()%28;
@@ -200,7 +200,6 @@ void mode_change(struct ballstate* ts,int key,int count)
 			ts->y = 60;
 			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
 	}
-	CLK_SysTickDelay(2000);
 }
 //wrong direction,block disappear wrong
 int32_t main (void)
