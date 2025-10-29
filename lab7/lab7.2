@@ -6,6 +6,7 @@
 //
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "Scankey.h"
 #include "Seven_Segment.h"
 #include <math.h>
@@ -25,6 +26,8 @@ struct ballstate
 {
 	enum State state;
 	uint16_t x,y,r,rec_stx,rec_sty,rec_endx,rec_endy;
+	uint16_t rec1_stx,rec1_sty,rec1_endx,rec1_endy;
+	int co1,co2;
 	int movx,movy,dirx,diry;
 };
 
@@ -60,7 +63,6 @@ int key_release(void)
 		static int prekey = 0;
 		int presentkey = 0,result = 0;
 		presentkey = ScanKey();
-		CLK_SysTickDelay(1000);
 		if(prekey!=0 && presentkey==0)
 			result = prekey;
 		else
@@ -74,12 +76,16 @@ void init_structure(struct ballstate *ts)
 	ts->state = stop;
 	ts->x=64;ts->y=60;ts->r=3;
 	ts->movx=3;ts->movy=3;ts->dirx=0;ts->diry=0;
-	ts->rec_stx = rand()%123;ts->rec_sty = rand()%28;
+	ts->rec_stx = rand()%64;ts->rec_sty = rand()%28;
 	ts->rec_endx=ts->rec_stx+5;ts->rec_endy=ts->rec_sty+5;
+	ts->rec1_stx = ts->rec_stx+(rand())%32+20;ts->rec1_sty=rand()%28;
+	ts->rec1_endx = ts->rec1_stx+5;ts->rec1_endy = ts->rec1_sty+5;
+	ts->co1=1;ts->co2=1;
+	//64~127
 }
 
 
-void mode_change(struct ballstate* ts,int key)
+void mode_change(struct ballstate* ts,int key,int count)
 {
 	int left_x,right_x,up_y,down_y;
 	if(ts->state == stop)
@@ -90,26 +96,35 @@ void mode_change(struct ballstate* ts,int key)
 				ts->state = move;
 				ts->dirx = -1;
 				ts->diry = -1;
+				break;
 			case 3:
 				ts->state = move;
 				ts->dirx = 1;
 				ts->diry = -1;
+				break;
 			case 4:
 				ts->state = move;
 				ts->dirx = -1;
 				ts->diry = 0;
+				break;
 			case 6:
 				ts->state = move;
 				ts->dirx = 1;
 				ts->diry = 0;
+				break;
 			case 7:
 				ts->state = move;
 				ts->dirx = -1;
 				ts->diry = 1;
+				break;
 			case 9:
 				ts->state = move;
 				ts->dirx = 1;
 				ts->diry = 1;
+				break;
+			default:
+				ts->state=stop;
+				break;
 		}
 	}
 	if(key==5)
@@ -121,78 +136,87 @@ void mode_change(struct ballstate* ts,int key)
 	
 	if(key==8)
 	{
+		ts->co1=1;
+		ts->co2=1;
 		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
-		ts->rec_stx = rand()%123;ts->rec_sty=rand()%28;
-		ts->rec_endx=ts->rec_stx+5;ts->rec_endy=ts->rec_sty+5;
+		
+		ts->rec_stx = rand()%64; ts->rec_sty=rand()%28;
+		ts->rec_endx=ts->rec_stx+5; ts->rec_endy=ts->rec_sty+5;
+		
 		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,FG_COLOR,BG_COLOR);
+		CLK_SysTickDelay(2000);
+		fill_Rectangle(ts->rec1_stx,ts->rec1_sty,ts->rec1_endx,ts->rec1_endy,BG_COLOR,BG_COLOR);
+		
+		ts->rec1_stx = ts->rec_endx+((rand())%32)+20; ts->rec1_sty=rand()%28;
+		ts->rec1_endx = ts->rec1_stx+5; ts->rec1_endy = ts->rec1_sty+5;
+		
+		fill_Rectangle(ts->rec1_stx,ts->rec1_sty,ts->rec1_endx,ts->rec1_endy,FG_COLOR,BG_COLOR);
 	}
 	
 	if ((ts->x - ts->r) < L_BAR_X)
 	{
-		Buzz(1);
 		ts->dirx=1;  
 	}
 	else if ((ts->x + ts->r) > R_BAR_X) 
 	{
-		Buzz(1);
 		ts->dirx=-1;
 	}
 	else if ((ts->y - ts->r) < 0) 
 	{
-		Buzz(1);
 		ts->diry=1;  
 	}
 	else if ((ts->y + ts->r) > LCD_Ymax)
 	{
-		Buzz(1);
 		ts->diry=-1;
 	}
 	
-	//rectangle collision
-	left_x=ts->x - ts->r;right_x=ts->x + ts->r;down_y=ts->y - ts->r;up_y=ts->y + ts->r;
-	if ((left_x<=ts->rec_endx)&&(left_x>=ts->rec_stx)&&(left_x<=ts->rec_endy)&&(left_x>=ts->rec_sty))
+	if(ts->state==move && count==24)
 	{
-		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
-		ts->state = stop;
-		ts->dirx=0;ts->diry=0;
-		ts->x=64;ts->y=60;
-	}
-	else if ((right_x<=ts->rec_endx)&&(right_x>=ts->rec_stx)&&(right_x<=ts->rec_endy)&&(right_x>=ts->rec_sty))
-	{
-		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
-		ts->state = stop;
-		ts->dirx=0;ts->diry=0;
-		ts->x=64;ts->y=60;
-	}
-	else if ((down_y<=ts->rec_endx)&&(down_y>=ts->rec_stx)&&(down_y<=ts->rec_endy)&&(down_y>=ts->rec_sty))
-	{
-		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
-		ts->state = stop;
-		ts->dirx=0;ts->diry=0;
-		ts->x=64;ts->y=60;
-	}
-	else if ((up_y<=ts->rec_endx)&&(up_y>=ts->rec_stx)&&(up_y<=ts->rec_endy)&&(up_y>=ts->rec_sty))
-	{
-		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
-		ts->state = stop;
-		ts->dirx=0;ts->diry=0;
-		ts->x=64;ts->y=60;
+		draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+		ts->x = ts->x + ts->dirx*ts->movx;
+		ts->y = ts->y + ts->diry*ts->movy;
+		draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
 	}
 	
-	ts->x = ts->x + ts->dirx*ts->movx;
-	ts->y = ts->y + ts->diry*ts->movy;
+	//rectangle collision
+	left_x = ts->x - ts->r;
+	right_x = ts->x + ts->r;
+	up_y = ts->y - ts->r;
+	down_y = ts->y + ts->r;
+	if (right_x >= ts->rec_stx && left_x <= ts->rec_endx && down_y >= ts->rec_sty && up_y <= ts->rec_endy&&ts->co1==1)
+	{
+			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+			ts->co1=0;
+			fill_Rectangle(ts->rec_stx, ts->rec_sty, ts->rec_endx, ts->rec_endy, BG_COLOR, BG_COLOR);
+			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	
+	if (right_x >= ts->rec1_stx && left_x <= ts->rec1_endx && down_y >= ts->rec1_sty && up_y <= ts->rec1_endy&&ts->co2==1)
+	{
+			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, FG_COLOR);
+			ts->co2=0;
+			fill_Rectangle(ts->rec1_stx, ts->rec1_sty, ts->rec1_endx, ts->rec1_endy, BG_COLOR, BG_COLOR);
+			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	if(ts->co1==0 && ts->co2==0)
+	{
+			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, FG_COLOR);
+			ts->state = stop;
+			ts->dirx = 0;
+			ts->diry = 0;
+			ts->x = 64;
+			ts->y = 60;
+			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	CLK_SysTickDelay(2000);
 }
-
+//wrong direction,block disappear wrong
 int32_t main (void)
 {
-	int dirX, dirY;
-	int movX, movY,count=0;
-	uint16_t r,key;
-	uint16_t x, y;
-	uint16_t fgColor, bgColor;
+	int count=0,counter=0;
+	uint16_t key;
 	struct ballstate ball;
 	init_structure(&ball);
-	fill_Rectangle(ball.rec_stx,ball.rec_sty,ball.rec_endx,ball.rec_endy,FG_COLOR,BG_COLOR);
 	Init_GPIO();
 	SYS_Init();
 	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
@@ -201,18 +225,13 @@ int32_t main (void)
 	init_LCD();
 	clear_LCD();
 	OpenKeyPad();
-	
-	
-	bgColor = BG_COLOR;
+	draw_Circle(ball.x, ball.y, ball.r, FG_COLOR, BG_COLOR); // draw a circle
 	while(1) {
 		 srand(count++);
-	   fgColor = FG_COLOR;//draw
-	   draw_Circle(x, y, r, fgColor, bgColor); // draw a circle
-	   CLK_SysTickDelay(50000); // adjustable delay for vision
-     fgColor = BG_COLOR;//erase
-	   draw_Circle(x, y, r, fgColor, bgColor); // erase a circle
+	   
 		 key = key_release();
-		 mode_change(&ball,key);
-     				
+		 mode_change(&ball,key,counter);
+		 counter = (counter+1)%25;
+     CLK_SysTickDelay(2000);
      }
 }
