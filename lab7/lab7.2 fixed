@@ -1,0 +1,238 @@
+//
+// LCD_Graph_Pingpong: draw a circle bouncing around between two bars on LCD
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include "Scankey.h"
+#include "Seven_Segment.h"
+#include <math.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Draw2D.h"
+#define PIXEL_ON  1
+#define PIXEL_OFF 0
+#define X0 64       // Circle initial X 
+#define Y0 32       // Circle initial Y
+#define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
+#define L_BAR_X 0          // Left-Bar  X-position
+enum State{move,stop};
+struct ballstate
+{
+	enum State state;
+	uint16_t x,y,r,rec_stx,rec_sty,rec_endx,rec_endy;
+	uint16_t rec1_stx,rec1_sty,rec1_endx,rec1_endy;
+	int co1,co2;
+	int movx,movy,dirx,diry;
+};
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+void Buzz(int number)
+{
+	int i;
+	for (i=0; i<number; i++) {
+      PB11=0; // PB11 = 0 to turn on Buzzer
+	  CLK_SysTickDelay(100000);	 // Delay 
+	  PB11=1; // PB11 = 1 to turn off Buzzer	
+	  CLK_SysTickDelay(100000);	 // Delay 
+	}
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+void init_structure(struct ballstate *ts)
+{
+	ts->state = stop;
+	ts->x=64;ts->y=60;ts->r=3;
+	ts->movx=3;ts->movy=3;ts->dirx=0;ts->diry=0;
+	ts->rec_stx = rand()%64;ts->rec_sty = rand()%28;
+	ts->rec_endx=ts->rec_stx+5;ts->rec_endy=ts->rec_sty+5;
+	ts->rec1_stx = ts->rec_stx+(rand())%32+20;ts->rec1_sty=rand()%28;
+	ts->rec1_endx = ts->rec1_stx+5;ts->rec1_endy = ts->rec1_sty+5;
+	ts->co1=1;ts->co2=1;
+	//64~127
+}
+
+
+void mode_change(struct ballstate* ts,int key,int count)
+{
+	int left_x,right_x,up_y,down_y;
+	if(ts->state == stop)
+	{
+		switch(key)
+		{
+			case 1:
+				ts->state = move;
+				ts->dirx = -1;
+				ts->diry = -1;
+				break;
+			case 3:
+				ts->state = move;
+				ts->dirx = 1;
+				ts->diry = -1;
+				break;
+			case 4:
+				ts->state = move;
+				ts->dirx = -1;
+				ts->diry = 0;
+				break;
+			case 6:
+				ts->state = move;
+				ts->dirx = 1;
+				ts->diry = 0;
+				break;
+			case 7:
+				ts->state = move;
+				ts->dirx = -1;
+				ts->diry = 1;
+				break;
+			case 9:
+				ts->state = move;
+				ts->dirx = 1;
+				ts->diry = 1;
+				break;
+			default:
+				ts->state=stop;
+				break;
+		}
+	}
+	if(key==5)
+	{
+		ts->state = stop;
+		ts->dirx = 0;
+		ts->diry = 0;
+	}
+	
+	if(key==8)
+	{
+		ts->co1=1;
+		ts->co2=1;
+		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,BG_COLOR,BG_COLOR);
+		
+		ts->rec_stx = rand()%64; ts->rec_sty=rand()%28;
+		ts->rec_endx=ts->rec_stx+5; ts->rec_endy=ts->rec_sty+5;
+		
+		fill_Rectangle(ts->rec_stx,ts->rec_sty,ts->rec_endx,ts->rec_endy,FG_COLOR,BG_COLOR);
+		CLK_SysTickDelay(2000);
+		fill_Rectangle(ts->rec1_stx,ts->rec1_sty,ts->rec1_endx,ts->rec1_endy,BG_COLOR,BG_COLOR);
+		
+		ts->rec1_stx = ts->rec_endx+((rand())%32)+20; ts->rec1_sty=rand()%28;
+		ts->rec1_endx = ts->rec1_stx+5; ts->rec1_endy = ts->rec1_sty+5;
+		
+		fill_Rectangle(ts->rec1_stx,ts->rec1_sty,ts->rec1_endx,ts->rec1_endy,FG_COLOR,BG_COLOR);
+	}
+	
+	if ((ts->x - ts->r) < L_BAR_X)
+	{
+		ts->dirx=1;  
+	}
+	else if ((ts->x + ts->r) > R_BAR_X) 
+	{
+		ts->dirx=-1;
+	}
+	else if ((ts->y - ts->r) < 0) 
+	{
+		ts->diry=1;  
+	}
+	else if ((ts->y + ts->r) > LCD_Ymax)
+	{
+		ts->diry=-1;
+	}
+	
+	//rectangle collision
+	left_x = ts->x - ts->r;
+	right_x = ts->x + ts->r;
+	up_y = ts->y - ts->r;
+	down_y = ts->y + ts->r;
+	if (right_x >= ts->rec_stx && left_x <= ts->rec_endx && down_y >= ts->rec_sty && up_y <= ts->rec_endy&&ts->co1==1)
+	{
+			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+			ts->co1=0;
+			fill_Rectangle(ts->rec_stx, ts->rec_sty, ts->rec_endx, ts->rec_endy, BG_COLOR, BG_COLOR);
+			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	
+	if (right_x >= ts->rec1_stx && left_x <= ts->rec1_endx && down_y >= ts->rec1_sty && up_y <= ts->rec1_endy&&ts->co2==1)
+	{
+			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+			ts->co2=0;
+			fill_Rectangle(ts->rec1_stx, ts->rec1_sty, ts->rec1_endx, ts->rec1_endy, BG_COLOR, BG_COLOR);
+			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	if(ts->co1==0 && ts->co2==0)
+	{
+			draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+			ts->state = stop;
+			ts->dirx = 0;
+			ts->diry = 0;
+			ts->x = 64;
+			ts->y = 60;
+			draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	CLK_SysTickDelay(2000);
+}
+//wrong direction,block disappear wrong
+int32_t main (void)
+{
+	int count=0,counter=0;
+	uint16_t key;
+	struct ballstate ball;
+	init_structure(&ball);
+	Init_GPIO();
+	SYS_Init();
+	GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+	OpenSevenSegment();
+	CloseSevenSegment();
+	init_LCD();
+	clear_LCD();
+	OpenKeyPad();
+	draw_Circle(ball.x, ball.y, ball.r, FG_COLOR, BG_COLOR); // draw a circle
+	while(1) {
+		 srand(count++);
+	   
+		 key = key_release();
+		 if(key!=0)
+			 counter = 0;
+		 mode_change(&ball,key,counter);
+		 counter = (counter+1)%25;
+		 if(ball.state==move && counter==24)
+		 {
+			draw_Circle(ball.x,ball.y,ball.r, BG_COLOR, BG_COLOR);
+			ball.x = ball.x + ball.dirx*ball.movx;
+			ball.y = ball.y + ball.diry*ball.movy;
+			draw_Circle(ball.x,ball.y,ball.r, FG_COLOR, BG_COLOR);
+		 }
+		 CLK_SysTickDelay(2000);
+  }
+}
