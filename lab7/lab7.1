@@ -6,6 +6,7 @@
 //
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "Scankey.h"
 #include "Seven_Segment.h"
 #include <math.h>
@@ -20,7 +21,7 @@
 #define Y0 32       // Circle initial Y
 #define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
 #define L_BAR_X 0          // Left-Bar  X-position
-enum State{move,stop};
+enum State{move,stop,end};
 struct ballstate
 {
 	enum State state;
@@ -71,78 +72,58 @@ int key_release(void)
 
 void init_structure(struct ballstate *ts)
 {
-	ts->state = stop;
-	ts->x=64;ts->y=32;ts->r=3;
-	ts->movx=3;ts->movy=3;ts->dirx=0;ts->diry=0;
+	ts->state = end;
+	ts->x=0;ts->y=32;ts->r=4;
+	ts->movx=8;ts->movy=8;ts->dirx=1;ts->diry=0;
 }
 
-void mode_change(struct ballstate* ts,int key)
+void mode_change(struct ballstate* ts,int key,int count)
 {
 	if(ts->state == stop)
 	{
 		switch(key)
 		{
-			case 1:
-				ts->state = move;
-				ts->dirx = -1;
-				ts->diry = -1;
 			case 3:
 				ts->state = move;
 				ts->dirx = 1;
-				ts->diry = -1;
-			case 4:
-				ts->state = move;
-				ts->dirx = -1;
 				ts->diry = 0;
-			case 6:
-				ts->state = move;
-				ts->dirx = 1;
-				ts->diry = 0;
-			case 7:
-				ts->state = move;
-				ts->dirx = -1;
-				ts->diry = 1;
-			case 9:
-				ts->state = move;
-				ts->dirx = 1;
-				ts->diry = 1;
 		}
 	}
-	if(key==5)
+	if(key==1 && ts->state==end)
+	{
+		ts->x = 10;
+		ts->y = 32;
+		ts->dirx =1;
+		ts->diry =0;
+		ts->state = move;
+		draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
+	}
+	if(key==2)
 	{
 		ts->state = stop;
 		ts->dirx = 0;
 		ts->diry = 0;
 	}
-	
-	if ((ts->x - ts->r) < L_BAR_X)
+	if ((ts->x + ts->r) > R_BAR_X && ts->state!=end) 
 	{
+		draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR); // erase a circle
+		ts->state = end;
 		Buzz(1);
-		ts->dirx=1;  
+		CLK_SysTickDelay(20000);
+		
 	}
-	else if ((ts->x + ts->r) > R_BAR_X) 
+	if(count==249 && ts->state!=end)
 	{
-		Buzz(1);
-		ts->dirx=-1;
+		draw_Circle(ts->x,ts->y,ts->r, BG_COLOR, BG_COLOR);
+		ts->x = ts->x + ts->dirx*ts->movx;
+		ts->y = ts->y + ts->diry*ts->movy;
+		draw_Circle(ts->x,ts->y,ts->r, FG_COLOR, BG_COLOR);
 	}
-	else if ((ts->y - ts->r) < 0) 
-	{
-		Buzz(1);
-		ts->diry=1;  
-	}
-	else if ((ts->y + ts->r) > LCD_Ymax)
-	{
-		Buzz(1);
-		ts->diry=-1;
-	}
-	
-	ts->x = ts->x + ts->dirx*ts->movx;
-	ts->y = ts->y + ts->diry*ts->movy;
 }
 
 int32_t main (void)
 {
-	int dirX, dirY;
+	int dirX, dirY,count=0;
 	int movX, movY;
 	uint16_t r,key;
 	uint16_t x, y;
@@ -162,13 +143,9 @@ int32_t main (void)
 	
 	bgColor = BG_COLOR;
 	while(1) {
-	   fgColor = FG_COLOR;//draw
-	   draw_Circle(x, y, r, fgColor, bgColor); // draw a circle
-	   CLK_SysTickDelay(50000); // adjustable delay for vision
-     fgColor = BG_COLOR;//erase
-	   draw_Circle(x, y, r, fgColor, bgColor); // erase a circle
 		 key = key_release();
-		 mode_change(&ball,key);
-     				
+		 mode_change(&ball,key,count);
+		 count = (count+1)%250;
+     CLK_SysTickDelay(2000);
      }
 }
