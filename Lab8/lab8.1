@@ -1,0 +1,195 @@
+//
+// GPIO_7seg : counting from 0 to 9999 and display on 7-segment LEDs
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+#define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
+#define L_BAR_X 0          // Left-Bar  X-position
+
+enum state {start,go};
+int digits[9] = {1,2,3,4,5,6,7,8,9};
+int arr[4];
+
+struct number_state
+{
+	enum state st;
+	int num[4];
+	int dirx;
+	int speeds[4];
+	int direction[4];
+	int finish[4];
+};
+struct number_state ts;
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+void EINT1_IRQHandler(void)
+{
+    GPIO_CLR_INT_FLAG(PB, BIT15);	// Clear GPIO interrupt flag
+	  ts.dirx = 1;
+		ts.st = go;
+}
+
+void Init_EXTINT(void)
+{
+	  // Configure EINT1 pin and enable interrupt by rising and falling edge trigger
+    GPIO_SetMode(PB, BIT15, GPIO_MODE_INPUT);
+    GPIO_EnableEINT1(PB, 15, GPIO_INT_RISING); // RISING, FALLING, BOTH_EDGE, HIGH, LOW
+    NVIC_EnableIRQ(EINT1_IRQn);
+
+    // Enable interrupt de-bounce function and select de-bounce sampling cycle time
+    GPIO_SET_DEBOUNCE_TIME(GPIO_DBCLKSRC_LIRC, GPIO_DBCLKSEL_64);
+    GPIO_ENABLE_DEBOUNCE(PB, BIT15);
+}
+
+void init_number(struct number_state *ts)
+{
+	int i,j,temp;
+	int sorted[4];
+	
+	PC12=1;PC13=1;PC14=1;PC15=1;
+	ts->st = start;
+	ts->dirx = 0;
+	for(i=8;i>0;i--)
+	{
+			j=rand()%(i+1);
+			temp = digits[i];
+			digits[i]=digits[j];
+			digits[j]=temp;
+	}
+	for(i=0;i<4;i++)
+	{
+		ts->num[i] = digits[i];
+		sorted[i] = digits[i];
+		ts->finish[i] = 0;
+		ts->direction[i] = 0;
+	}
+	
+	for(i=0;i<4;i++)
+	{
+		for(j=i+1;j<4;j++)
+		{
+			if(sorted[j]<sorted[i])
+			{
+				temp = sorted[i];
+				sorted[i] = sorted[j];
+				sorted[j] = temp;
+			}
+		}
+	}
+	
+	for(i=0;i<4;i++)
+	{
+		for(j=0;j<4;j++)
+		{
+			if(ts->num[i] == sorted[j])
+				ts->speeds[i] = 2+j*2;
+		}
+	}
+	
+}
+
+void output(struct number_state *ts)
+{
+	int i;
+	unsigned char ch;
+	for(i=0;i<4;i++)
+	{
+		ch = ts->num[i]+'0';
+		printC(ts->direction[i],i*16,' ');
+		ts->direction[i] +=(ts->speeds[i]*ts->dirx);
+		if(ts->direction[i]>R_BAR_X)
+		{
+			ts->finish[i] = 1;
+			switch(i)
+			{
+				case 0:
+					PC12=0;
+					break;
+				case 1:
+					PC13=0;
+					break;
+				case 2:
+					PC14=0;
+					break;
+				case 3:
+					PC15=0;
+					break;
+			}
+			continue;
+		}
+		else
+			printC(ts->direction[i],i*16,ch);
+	}
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+int32_t main()
+{	
+		int key;
+    Init_GPIO();
+		SYS_Init();
+		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+		OpenSevenSegment();
+		CloseSevenSegment();
+		init_LCD();
+		clear_LCD();
+		OpenKeyPad();
+    Init_EXTINT();
+		init_number(&ts);
+		output(&ts);
+
+    while(1)
+		{
+			key = key_release();
+			if(ts.st == go)
+			{
+				output(&ts);
+				if(ts.finish[0] && ts.finish[1] && ts.finish[2] && ts.finish[3])
+        {
+            ts.st = start;
+            ts.dirx = 0;
+            if(key!=0)
+						{
+							init_number(&ts);
+							clear_LCD();
+							output(&ts);
+						}
+        }
+			}
+		}
+		CLK_SysTickDelay(2000);
+}
