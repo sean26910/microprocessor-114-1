@@ -20,7 +20,7 @@ struct number_state
 {
 	enum state st;
 	int num[4];
-	int dirx;
+	int dirx,light;
 	int speeds[4];
 	int direction[4];
 	int finish[4];
@@ -67,6 +67,7 @@ void init_number(struct number_state *ts)
 	int i,j,temp;
 	int sorted[4];
 	
+	ts->light = 0;
 	PC12=1;PC13=1;PC14=1;PC15=1;
 	ts->st = start;
 	ts->dirx = 0;
@@ -109,37 +110,52 @@ void init_number(struct number_state *ts)
 	
 }
 
-void output(struct number_state *ts)
+void output(struct number_state *ts,int counter)
 {
 	int i;
 	unsigned char ch;
-	for(i=0;i<4;i++)
+	if(counter == 24)
 	{
-		ch = ts->num[i]+'0';
-		printC(ts->direction[i],i*16,' ');
-		ts->direction[i] +=(ts->speeds[i]*ts->dirx);
-		if(ts->direction[i]>R_BAR_X)
+		for(i=0;i<4;i++)
 		{
-			ts->finish[i] = 1;
-			switch(i)
+			ch = ts->num[i]+'0';
+			
+			if (ts->finish[i])
 			{
-				case 0:
-					PC12=0;
-					break;
-				case 1:
-					PC13=0;
-					break;
-				case 2:
-					PC14=0;
-					break;
-				case 3:
-					PC15=0;
-					break;
+					printC(ts->direction[i],i*16,' ');
+					ts->direction[i] = R_BAR_X-6;
+					printC(ts->direction[i], i*16, ch);
+					continue;
 			}
-			continue;
-		}
-		else
+			
+			printC(ts->direction[i],i*16,' ');
+			ts->direction[i] +=(ts->speeds[i]*ts->dirx);
+			if(ts->direction[i]>R_BAR_X-6)
+			{
+				ts->direction[i] = R_BAR_X-6;
+				ts->finish[i] = 1;
+				if(ts->light==0)
+				{
+					switch(i)
+					{
+						case 0:
+							PC12=0;
+							break;
+						case 1:
+							PC13=0;
+							break;
+						case 2:
+							PC14=0;
+							break;
+						case 3:
+							PC15=0;
+							break;
+					}
+				}
+				ts->light = 1;
+			}
 			printC(ts->direction[i],i*16,ch);
+		}
 	}
 }
 
@@ -159,7 +175,7 @@ int key_release(void)
 
 int32_t main()
 {	
-		int key;
+		int key,counter = 0,mod=75;
     Init_GPIO();
 		SYS_Init();
 		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
@@ -169,16 +185,19 @@ int32_t main()
 		clear_LCD();
 		OpenKeyPad();
     Init_EXTINT();
+	
 		init_number(&ts);
-		output(&ts);
+		output(&ts,24);
 
     while(1)
 		{
+			srand(counter++);
 			key = key_release();
 			if(ts.st == go)
 			{
-				output(&ts);
-				if(ts.finish[0] && ts.finish[1] && ts.finish[2] && ts.finish[3])
+				output(&ts,counter%mod);
+			}
+			if(ts.finish[0] && ts.finish[1] && ts.finish[2] && ts.finish[3])
         {
             ts.st = start;
             ts.dirx = 0;
@@ -186,10 +205,9 @@ int32_t main()
 						{
 							init_number(&ts);
 							clear_LCD();
-							output(&ts);
+							output(&ts,24);
 						}
         }
-			}
 		}
 		CLK_SysTickDelay(2000);
 }
