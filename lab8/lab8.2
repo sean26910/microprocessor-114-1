@@ -1,0 +1,215 @@
+//
+// GPIO_7seg : counting from 0 to 9999 and display on 7-segment LEDs
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+#include "Draw2D.h"
+#define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
+#define L_BAR_X 0          // Left-Bar  X-position
+enum State{start,go,end};
+volatile uint8_t u8ADF;
+
+struct ball_state
+{
+	enum State state;
+	int ballx,bally,ballr,movx,movy,oldx,oldy,dirx,diry;
+	int fixedrecx,fixedrecy,fixedrec_endx,fixedrec_endy;
+	int movrecx,movrecy,movrec_endx,movrec_endy;
+};
+
+void ADC_IRQHandler(void)
+{
+    uint32_t u32Flag;
+
+    // Get ADC conversion finish interrupt flag
+    u32Flag = ADC_GET_INT_FLAG(ADC, ADC_ADF_INT);
+
+    if(u32Flag & ADC_ADF_INT)
+        u8ADF = 1;
+
+    ADC_CLR_INT_FLAG(ADC, u32Flag);
+}
+
+void Init_ADC(void)
+{
+    ADC_Open(ADC, ADC_INPUT_MODE, ADC_OPERATION_MODE, ADC_CHANNEL_MASK);
+    ADC_POWER_ON(ADC);
+    ADC_EnableInt(ADC, ADC_ADF_INT);
+    NVIC_EnableIRQ(ADC_IRQn);
+}
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+void Buzz(int number)
+{
+	int i;
+	for (i=0; i<number; i++) {
+      PB11=0; // PB11 = 0 to turn on Buzzer
+	  CLK_SysTickDelay(100000);	 // Delay 
+	  PB11=1; // PB11 = 1 to turn off Buzzer	
+	  CLK_SysTickDelay(100000);	 // Delay 
+	}
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+void init_structure(struct ball_state *ts)
+{
+	ts->state = start;
+	ts->ballx=64;ts->bally=32;ts->ballr=8;
+	ts->fixedrecx = rand()%111;ts->fixedrecy = 20;ts->fixedrec_endx = ts->fixedrecx+16;ts->fixedrec_endy = 28;
+	ts->movrecx = 0;ts->movrecy=50;ts->movrec_endx=16;ts->movrec_endy=58;
+	ts->movx = 0;ts->movy = 0;
+	ts->dirx = 3;ts->diry = 3;
+}
+
+void mode_change(struct ball_state* ts,uint32_t count)
+{
+	int left_x,right_x,up_y,down_y;
+	int old_left;
+  int old_right;
+  int old_up;
+  int old_down;
+	
+	ts->oldx = ts->ballx;
+	ts->oldy = ts->bally;
+	// collision with edge
+	if ((ts->ballx - ts->ballr) < L_BAR_X)
+		ts->movx=1;  
+	else if ((ts->ballx + ts->ballr) > R_BAR_X) 
+		ts->movx=-1;
+	else if ((ts->bally - ts->ballr) < 0) 
+		ts->movy=1; 
+	else if ((ts->bally + ts->ballr) > LCD_Ymax)
+		ts->movy=-1;
+	
+	if(count==24)
+	{
+		//update lcd
+		draw_Circle(ts->ballx,ts->bally,ts->ballr,BG_COLOR,BG_COLOR);
+		ts->ballx = ts->ballx+ts->movx*ts->dirx;
+		ts->bally = ts->bally+ts->movy*ts->diry;
+		draw_Circle(ts->ballx,ts->bally,ts->ballr,BG_COLOR,BG_COLOR);
+	}
+	
+	left_x = ts->ballx - ts->ballr;
+	right_x = ts->ballx + ts->ballr;
+	up_y = ts->bally - ts->ballr;
+	down_y = ts->bally + ts->ballr;
+	if (right_x >= ts->fixedrecx && left_x <= ts->fixedrec_endx && down_y >= ts->fixedrecy && up_y <= ts->fixedrec_endy)
+	{
+		old_left  = ts->oldx - ts->ballr;
+    old_right = ts->oldx + ts->ballr;
+    old_up    = ts->oldy - ts->ballr;
+    old_down  = ts->oldy + ts->ballr;
+		
+		if(old_down < ts->fixedrecy)
+				ts->movy = -1;
+		else if(old_up > ts->fixedrec_endy)
+				ts->movy = 1;
+		else if(old_right < ts->fixedrecx)
+				ts->movx = -1;
+		else if(old_left > ts->fixedrec_endx)
+				ts->movx = 1;
+	}
+	
+}
+
+int32_t main()
+{	
+		int key,enter=1,value,mod=25;
+		struct ball_state ts;
+		uint32_t counter = 0;
+		uint32_t u32ADCvalue;
+    Init_GPIO();
+		SYS_Init();
+		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+		OpenSevenSegment();
+		CloseSevenSegment();
+		init_LCD();
+		clear_LCD();
+		OpenKeyPad();
+    init_structure(&ts);
+
+    while(1)
+		{
+			key = key_release();
+			if(key!=0 && enter)
+			{
+				enter = 0;
+				ts.state = go;
+				value = rand()%4;
+				switch(value)
+				{
+					case 0:
+						ts.movx = 1;
+						ts.movy = 1;
+						break;
+					case 1:
+						ts.movx = 1;
+						ts.movy = -1;
+						break;
+					case 2:
+						ts.movx = -1;
+						ts.movy = -1;
+						break;
+					case 3:
+						ts.movx = -1;
+						ts.movy = 1;
+						break;
+				}
+			}
+			
+			srand(counter++);
+			ADC_START_CONV(ADC);
+			
+			if(ts.state==go)
+			{
+				fill_Rectangle(ts.movrecx, ts.movrecy, ts.movrec_endx, ts.movrec_endy, BG_COLOR, BG_COLOR);
+				ts.movrecx = (u32ADCvalue*(128-16))/4095;
+				ts.movrec_endx = ts.movrecx+16;
+				fill_Rectangle(ts.movrecx, ts.movrecy, ts.movrec_endx, ts.movrec_endy, BG_COLOR, BG_COLOR);
+				mode_change(&ts,counter%mod);
+			}
+			else if(ts.state==end)
+			{
+				clear_LCD();
+			}
+			
+      u32ADCvalue = ADC_GET_CONVERSION_DATA(ADC, 7);
+      ADC_DisableInt(ADC, ADC_ADF_INT);
+			CLK_SysTickDelay(2000);
+		}
+}
