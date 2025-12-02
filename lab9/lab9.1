@@ -1,185 +1,194 @@
+//
+// GPIO_7seg : counting from 0 to 9999 and display on 7-segment LEDs
+//
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include "NUC100Series.h"
+#include "MCU_init.h"
 #include "SYS_init.h"
 #include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+#include "Draw2D.h"
+#define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
+#define L_BAR_X 0          // Left-Bar  X-position
 
-// ========= 貪食蛇參數 =========
-#define MAP_W 64
-#define MAP_H 32
-#define CELL  2         // 1 格 = 2×2 pixels
+volatile uint8_t u8ADF;
+volatile uint16_t X, Y;
+//volatile uint8_t  B;
 
-// ========= Joystick ADC =========
-volatile uint16_t joyX, joyY;
-volatile uint8_t adc_flag = 0;
+typedef struct
+{
+	int x,y;
+}Cell;
 
-// ========= Snake =========
-typedef struct {
-    int x, y;
-} Cell;
+Cell snake[64*32];
+int snake_len = 16;
+int dirx=0,diry=0,moveflag = 0,gameover = 0;
 
-Cell snake[MAP_W * MAP_H];   // 最多 2048 節
-int snake_len = 16;          // 初始長度 16
-int dirx = 1, diry = 0;      // 初始方向：向右
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
 
-int game_over = 0;
-
-// ========= Timer Flag (200ms) =========
-volatile uint8_t move_flag = 0;
-
-//------------------------------------------------
-//  ADC Interrupt
-//------------------------------------------------
 void ADC_IRQHandler(void)
 {
-    joyX = ADC_GET_CONVERSION_DATA(ADC, 0);
-    joyY = ADC_GET_CONVERSION_DATA(ADC, 1);
-    adc_flag = 1;
+    uint32_t u32Flag;
 
-    ADC_CLR_INT_FLAG(ADC, ADC_ADF_INT);
+    // Get ADC conversion finish interrupt flag
+    u32Flag = ADC_GET_INT_FLAG(ADC, ADC_ADF_INT);
+
+    if(u32Flag & ADC_ADF_INT) {
+        X = ADC_GET_CONVERSION_DATA(ADC, 0);
+        Y = ADC_GET_CONVERSION_DATA(ADC, 1);
+    }
+    ADC_CLR_INT_FLAG(ADC, u32Flag);
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
 }
 
 void Init_ADC(void)
 {
-    ADC_Open(ADC, ADC_INPUT_MODE, ADC_OPERATION_MODE, (1<<0)|(1<<1));
+    ADC_Open(ADC, ADC_INPUT_MODE, ADC_OPERATION_MODE, ADC_CHANNEL_MASK );
     ADC_POWER_ON(ADC);
     ADC_EnableInt(ADC, ADC_ADF_INT);
     NVIC_EnableIRQ(ADC_IRQn);
-    ADC_START_CONV(ADC);
+    ADC_START_CONV(ADC);	
 }
 
-//------------------------------------------------
-//  Timer Interrupt (每 200ms 移動一次)
-//------------------------------------------------
-void TMR0_IRQHandler(void)
+void test()
 {
-    TIMER_ClearIntFlag(TIMER0);
-    move_flag = 1;
+	char buffer[128];
+	sprintf(buffer,"x=%d  ",X);
+	print_Line(0,buffer);
+	sprintf(buffer,"y=%d  ",Y);
+	print_Line(1,buffer);
 }
 
-void Init_Timer(void)
-{
-    TIMER_Open(TIMER0, TIMER_PERIODIC_MODE, 5);  // 200ms
-    TIMER_EnableInt(TIMER0);
-    NVIC_EnableIRQ(TMR0_IRQn);
-    TIMER_Start(TIMER0);
-}
-
-//------------------------------------------------
-//  在 LCD 畫 2×2 pixel（你要替換成自己的 version）
-//------------------------------------------------
-void draw_cell(int gx, int gy, uint16_t color)
-{
-    int x = gx * CELL;
-    int y = gy * CELL;
-    fill_Rectangle(x, y, x + CELL - 1, y + CELL - 1, color, color);
-}
-
-//------------------------------------------------
-//  Joystick 方向更新（Lab9-1）
-//  不推 / 推太小力 → 不動
-//------------------------------------------------
 void update_direction()
 {
-    if(!adc_flag) return;  
-    adc_flag = 0;
-
-    int dx = joyX - 2048;   // 搖桿左右偏移
-    int dy = joyY - 2048;   // 搖桿上下偏移
-
-    int TH = 300;  // Dead Zone threshold
-
-    // 不推 or 推太小力
-    if(abs(dx) < TH && abs(dy) < TH)
-        return;
-
-    // 左右方向優先
-    if(abs(dx) > abs(dy)) {
-        if(dx > 0 && dirx != -1) { dirx = 1;  diry = 0; }   // 右
-        else if(dx < 0 && dirx != 1) { dirx = -1; diry = 0; } // 左
-    }
-    else {
-        if(dy > 0 && diry != -1) { dirx = 0; diry = 1; }    // 下
-        else if(dy < 0 && diry != 1) { dirx = 0; diry = -1; } // 上
-    }
+	int dx = X-2048;
+	int dy = Y-2048;
+	int threshold = 300;
+	
+	if(abs(dx) < threshold && abs(dy) < threshold)
+			return;
+	
+	if(abs(dx)>abs(dy))
+	{
+		if(dx>0 && dirx != -1)
+		{
+			dirx = 2;diry=0;
+		}
+		else if(dx<0 && dirx!=1)
+		{
+			dirx = -2;diry=0;
+		}
+	}
+	else
+	{
+		if(dy>0 && diry!=-1)
+		{
+			dirx = 0;diry = 2;
+		}
+		else if(dy<0 && diry!=1)
+		{
+			dirx = 0;diry = -2;
+		}
+	}
 }
 
-//------------------------------------------------
-//  Snake Move（Lab9-1 無水果）
-//------------------------------------------------
 void move_snake()
 {
-    if(game_over) return;
-
-    // 新蛇頭位置
-    int nx = snake[0].x + dirx;
-    int ny = snake[0].y + diry;
-
-    // 撞牆：停止
-    if(nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) {
-        game_over = 1;
-        return;
-    }
-
-    // 撞自己：停止
-    for(int i=0; i<snake_len; i++){
-        if(snake[i].x == nx && snake[i].y == ny){
-            game_over = 1;
-            return;
-        }
-    }
-
-    // 畫新的蛇頭
-    draw_cell(nx, ny, GREEN);
-
-    // 記住尾巴位置（等等要擦掉）
-    int tail_x = snake[snake_len - 1].x;
-    int tail_y = snake[snake_len - 1].y;
-
-    // 整個身體往前移
-    for(int i = snake_len - 1; i > 0; i--)
-        snake[i] = snake[i - 1];
-
-    // 更新頭部
-    snake[0].x = nx;
-    snake[0].y = ny;
-
-    // 擦掉尾巴（不清全螢幕）
-    draw_cell(tail_x, tail_y, BLACK);
+	int nx,ny,tailx,taily,i;
+	int dx = X-2048;
+	int dy = Y-2048;
+	int threshold = 300;
+	
+	if(gameover)
+			return;
+	if(abs(dx) < threshold && abs(dy) < threshold)
+			return;
+	
+	nx = snake[0].x + dirx;
+	ny = snake[0].y + diry;
+	if(nx>126 || nx<0 || ny > 62 || ny < 0)
+		return;
+	
+	for(i=0;i<snake_len;i++)
+	{
+		if(snake[i].x == nx && snake[i].y == ny)
+		{
+			gameover = 1;
+			return;
+		}
+	}
+	fill_Rectangle(nx,ny,nx+1,ny+1,FG_COLOR,BG_COLOR);
+	snake[0].x = nx;
+	snake[0].y = ny;
+	
+	tailx = snake[snake_len-1].x; 
+	taily = snake[snake_len-1].y;
+	for(i=snake_len-1;i>0;i--)
+		snake[i] = snake[i-1];
+	
+	fill_Rectangle(tailx,taily,tailx+1,taily+1,BG_COLOR,BG_COLOR);
+	
 }
 
-//------------------------------------------------
-//  主程式：Lab9-1
-//------------------------------------------------
-int main(void)
+int32_t main (void)
 {
+		int counter = 0,i;
     SYS_Init();
-    init_LCD();
-    clear_LCD();
-
-    Init_ADC();
-    Init_Timer();
-
-    // 初始化蛇（16 Length, 中間水平, 向右）
-    int midY = MAP_H / 2;
-    int startX = 20;
-
-    for(int i=0; i<snake_len; i++)
-    {
-        snake[i].x = startX - i;
-        snake[i].y = midY;
-        draw_cell(snake[i].x, snake[i].y, GREEN);
-    }
-
-    // Game Loop
-    while(1)
-    {
-        update_direction();
-
-        if(move_flag) {
-            move_flag = 0;
-            move_snake();
-        }
+		Init_GPIO();
+		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+		OpenSevenSegment();
+		CloseSevenSegment();
+		init_LCD();
+		clear_LCD();
+		OpenKeyPad();
+    Init_ADC(); 
+    GPIO_SetMode(PC, BIT0, GPIO_MODE_INPUT); // set PC0 input for button
+		
+		for(i=0;i<snake_len;i++)
+		{
+			snake[i].x = 46-i*2;
+			snake[i].y = 16;
+			fill_Rectangle(snake[i].x,snake[i].y,snake[i].x+1,snake[i].y+1,FG_COLOR,BG_COLOR);
+			//x0 y0 x1 y1
+		}
+	
+    while(1){
+      //test();
+			counter = (counter+1)%25;
+			update_direction();
+			if(counter == 24)
+			{
+				move_snake();
+			}
+			CLK_SysTickDelay(3000);//0.03
     }
 }
