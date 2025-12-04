@@ -1,0 +1,242 @@
+//
+// GPIO_7seg : counting from 0 to 9999 and display on 7-segment LEDs
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+#include "Draw2D.h"
+#define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
+#define L_BAR_X 0          // Left-Bar  X-position
+
+volatile uint8_t u8ADF;
+volatile uint16_t X, Y;
+//volatile uint8_t  B;
+
+//§Q¥Î¤¤Â_¨Ó§ïÅÜ¼Æªº­È ¦¹ÅÜ¼Æ¤@©w­n³]volatile 
+
+typedef struct
+{
+	int x,y;
+}Cell;
+
+Cell snake[64];
+int snake_len = 16;
+int dirx=0,diry=0,moveflag = 0,gameover = 0;
+int blocked = 0;
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+void ADC_IRQHandler(void)
+{
+    uint32_t u32Flag;
+
+    // Get ADC conversion finish interrupt flag
+    u32Flag = ADC_GET_INT_FLAG(ADC, ADC_ADF_INT);
+
+    if(u32Flag & ADC_ADF_INT) {
+        X = ADC_GET_CONVERSION_DATA(ADC, 0);
+        Y = ADC_GET_CONVERSION_DATA(ADC, 1);
+    }
+    ADC_CLR_INT_FLAG(ADC, u32Flag);
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+void Init_ADC(void)
+{
+    ADC_Open(ADC, ADC_INPUT_MODE, ADC_OPERATION_MODE, ADC_CHANNEL_MASK );
+    ADC_POWER_ON(ADC);
+    ADC_EnableInt(ADC, ADC_ADF_INT);
+    NVIC_EnableIRQ(ADC_IRQn);
+    ADC_START_CONV(ADC);	
+}
+
+void test()
+{
+	char buffer[128];
+	sprintf(buffer,"x=%d  ",X);
+	print_Line(0,buffer);
+	sprintf(buffer,"y=%d  ",Y);
+	print_Line(1,buffer);
+}
+
+
+void update_direction()
+{
+	//prediction:dirx,diry direction:dx,dy
+	int dx = X-2048;
+	int dy = Y-2048;
+	int threshold = 300;
+	
+	if(abs(dx) < threshold && abs(dy) < threshold)
+			return;
+	
+	if(dirx>0 && dx<0)
+	{
+		moveflag = 1;
+		return;
+	}
+	if(dirx<0 && dx>0)
+	{
+		moveflag = 1;
+		return;
+	}
+	if(diry>0 && dy<0)
+	{
+		moveflag = 1;
+		return;
+	}
+	if(diry<0 && dy>0)
+	{
+		moveflag = 1;
+		return;
+	}
+	
+	//only way to change dirx,diry
+	if(abs(dx)>abs(dy))
+	{
+		moveflag = 0;
+		if(dx>0 && dirx != -2)
+		{
+			dirx = 2;diry=0;
+		}
+		else if(dx<0 && dirx!=2)
+		{
+			dirx = -2;diry=0;
+		}
+	}
+	else
+	{
+		moveflag = 0;
+		if(dy>0 && diry!=-2)
+		{
+			dirx = 0;diry = 2;
+		}
+		else if(dy<0 && diry!=2)
+		{
+			dirx = 0;diry = -2;
+		}
+	}
+}
+
+
+
+void move_snake()
+{
+    int nx, ny, tailx, taily, i;
+		int dx = X-2048;
+		int dy = Y-2048;
+		int threshold = 300;
+		
+		if(abs(dx) < threshold && abs(dy) < threshold)
+				return;
+		
+    if (gameover)
+        return;
+		
+		if(moveflag)
+				return;
+    
+    if (dirx == 0 && diry == 0)
+        return;
+
+    nx = snake[0].x + dirx;
+    ny = snake[0].y + diry;
+
+    if (nx > 126 || nx < 0 || ny > 62 || ny < 0)
+        return;
+
+    
+    for (i = 1; i < snake_len; i++)
+    {
+        if (snake[i].x == nx && snake[i].y == ny)
+        {
+            gameover = 1;
+            return;
+        }
+    }
+
+    
+    tailx = snake[snake_len - 1].x;
+    taily = snake[snake_len - 1].y;
+
+    
+    for (i = snake_len - 1; i > 0; i--)
+        snake[i] = snake[i - 1];
+
+    
+    snake[0].x = nx;
+    snake[0].y = ny;
+
+    
+    fill_Rectangle(nx, ny, nx + 1, ny + 1, FG_COLOR, BG_COLOR);
+    fill_Rectangle(tailx, taily, tailx + 1, taily + 1, BG_COLOR, BG_COLOR);
+}
+
+
+
+int32_t main(void)
+{
+		int i,counter=0;
+    Init_GPIO();
+		SYS_Init();
+		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+		OpenSevenSegment();
+		CloseSevenSegment();
+		init_LCD();
+		clear_LCD();
+		OpenKeyPad();
+		Init_ADC();
+    
+		for(i=0;i<snake_len;i++)
+		{
+			snake[i].x = 46-i*2;
+			snake[i].y = 16;
+			fill_Rectangle(snake[i].x,snake[i].y,snake[i].x+1,snake[i].y+1,FG_COLOR,BG_COLOR);
+			//x0 y0 x1 y1
+		}
+	
+    while(1){
+      //test();
+			ADC_START_CONV(ADC);	
+			counter = (counter+1)%25;
+			update_direction();
+			if(counter == 24)
+			{
+				move_snake();
+			}
+			CLK_SysTickDelay(3000);//0.03
+    }
+}
+//joystick up y to 0,down y to 4096,left x to 0,right x to 4096
