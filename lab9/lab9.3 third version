@@ -225,7 +225,7 @@ void Init_Timer1(void)
 
 void TMR1_IRQHandler(void)
 {	
-	static int num = 0;
+	static int num = 3;
 	show_7seg(num,score);
 	num = (num+1)%4;
   TIMER_ClearIntFlag(TIMER1); // Clear Timer1 time-out interrupt flag
@@ -265,7 +265,7 @@ int32_t main (void)
 				move_snake();
 			}
 			
-			CLK_SysTickDelay(2000);//0.03
+			CLK_SysTickDelay(3000);//0.03
     }
 }
 
@@ -290,6 +290,5 @@ void show_7seg(int i,int score)
 		leading = 0;
 		CloseSevenSegment();
 		ShowSevenSegment(i,data[i]);
-		CLK_SysTickDelay(2000);
 	}
 }
