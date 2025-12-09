@@ -136,17 +136,23 @@ void Init_Timer0(void)
 
 void TMR0_IRQHandler(void)
 {
+	if(st==stop)
+	{
+		times=0;
+		return;
+	}
+	
+	if(cnt_s%4==3)
+		times++;
 	cnt_s++;
+	
 	if(cnt_s%change_times == change_times-1)
 	{
 		if(st==running)
 		{
-			times++;
 			counter = (counter+1)%6;
 			enab = 1;
 		}
-		else
-			times=0;
 	}
   TIMER_ClearIntFlag(TIMER0);
 }
@@ -168,6 +174,7 @@ void TMR1_IRQHandler(void)
   TIMER_ClearIntFlag(TIMER1); // Clear Timer1 time-out interrupt flag
 }
 
+//change_times = 4,counter=0,enab=1,cnt_s=0,times=0;
 int32_t main (void)
 {
 		int key;
@@ -198,7 +205,9 @@ int32_t main (void)
 				else if(st==stop)
 				{
 					st=running;
-					counter = 0;			
+					counter = 0;	
+					enab=1;
+					cnt_s=0;
 				}
 			}
 			
