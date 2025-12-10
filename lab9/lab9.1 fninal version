@@ -28,6 +28,7 @@ Cell snake[64];
 int snake_len = 16;
 int dirx=0,diry=0,moveflag = 0,gameover = 0;
 int blocked = 0;
+int last_dirx = 0, last_diry = 0;
 
 void Init_GPIO(void)
 {
@@ -94,90 +95,104 @@ void test()
 
 void update_direction()
 {
-	//prediction:dirx,diry direction:dx,dy
-	int dx = X-2048;
-	int dy = Y-2048;
-	int threshold = 300;
+    int dx = (int)X - 2048;
+    int dy = (int)Y - 2048;
+    int threshold = 800;
+		int ndx, ndy;
 	
-	if(abs(dx) < threshold && abs(dy) < threshold)
-			return;
-	
-	if(dirx>0 && dx<0)
-	{
-		moveflag = 1;
-		return;
-	}
-	if(dirx<0 && dx>0)
-	{
-		moveflag = 1;
-		return;
-	}
-	if(diry>0 && dy<0)
-	{
-		moveflag = 1;
-		return;
-	}
-	if(diry<0 && dy>0)
-	{
-		moveflag = 1;
-		return;
-	}
-	
-	//only way to change dirx,diry
-	if(abs(dx)>abs(dy))
-	{
-		moveflag = 0;
-		if(dx>0 && dirx != -2)
+		if(abs(dx) < threshold && abs(dy) < threshold)
 		{
-			dirx = 2;diry=0;
+				if(dirx!=0 || diry!=0){
+						blocked = 1;       // ??????
+						last_dirx = dirx;  // ??????
+						last_diry = diry;
+						dirx = 0;
+						diry = 0;
+				}
+				return;
 		}
-		else if(dx<0 && dirx!=2)
-		{
-			dirx = -2;diry=0;
-		}
-	}
-	else
-	{
-		moveflag = 0;
-		if(dy>0 && diry!=-2)
-		{
-			dirx = 0;diry = 2;
-		}
-		else if(dy<0 && diry!=2)
-		{
-			dirx = 0;diry = -2;
-		}
-	}
+
+    // ???????:????
+    if (abs(dx) < threshold && abs(dy) < threshold)
+        return;
+
+    // ????????????? ndx, ndy(??? 2,0,-2)
+    if (abs(dx) >= abs(dy))
+    {
+        // ????
+        ndx = (dx > 0) ? 2 : -2;
+        ndy = 0;
+    }
+    else
+    {
+        // ????
+        ndx = 0;
+        ndy = (dy > 0) ? 2 : -2;
+    }
+
+    // ====== ???:???????? ======
+    if (!blocked)
+    {
+        // ?????????????????????? ? ??
+        if ((ndx == -dirx && ndy == -diry) && (dirx != 0 || diry != 0))
+        {
+            blocked   = 1;          // ??????
+            last_dirx = dirx;       // ?????
+            last_diry = diry;
+            dirx = 0;               // ??
+            diry = 0;
+            return;
+        }
+        else
+        {
+            // ?????
+            dirx = ndx;
+            diry = ndy;
+            return;
+        }
+    }
+    // ====== ???:???????(??????) ======
+    else
+    {
+        // ??????????????,???(????)
+        if (ndx == -last_dirx && ndy == -last_diry)
+            return;
+
+        // ??????????,???,????
+        dirx = ndx;
+        diry = ndy;
+        blocked = 0;   // ??????
+        return;
+    }
 }
-
-
 
 void move_snake()
 {
     int nx, ny, tailx, taily, i;
-		int dx = X-2048;
-		int dy = Y-2048;
-		int threshold = 300;
-		
-		if(abs(dx) < threshold && abs(dy) < threshold)
-				return;
-		
+
     if (gameover)
+    {
+        print_Line(0, "hello world");
         return;
-		
-		if(moveflag)
-				return;
-    
+    }
+
+    // ????(????????)????
     if (dirx == 0 && diry == 0)
         return;
 
+    // ???????????????
     nx = snake[0].x + dirx;
     ny = snake[0].y + diry;
 
+    // ????:???????? gameover
     if (nx > 126 || nx < 0 || ny > 62 || ny < 0)
+    {
+        // ???????????:
+        // gameover = 1;
         return;
+    }
 
-    
+    // ????:???? 1 ?????(0 ??)
     for (i = 1; i < snake_len; i++)
     {
         if (snake[i].x == nx && snake[i].y == ny)
@@ -187,23 +202,22 @@ void move_snake()
         }
     }
 
-    
+    // ???????,????
     tailx = snake[snake_len - 1].x;
     taily = snake[snake_len - 1].y;
 
-    
+    // ???????????
     for (i = snake_len - 1; i > 0; i--)
         snake[i] = snake[i - 1];
 
-    
+    // ??????
     snake[0].x = nx;
     snake[0].y = ny;
 
-    
+    // ???????????
     fill_Rectangle(nx, ny, nx + 1, ny + 1, FG_COLOR, BG_COLOR);
     fill_Rectangle(tailx, taily, tailx + 1, taily + 1, BG_COLOR, BG_COLOR);
 }
-
 
 
 int32_t main(void)
@@ -222,7 +236,7 @@ int32_t main(void)
 		for(i=0;i<snake_len;i++)
 		{
 			snake[i].x = 46-i*2;
-			snake[i].y = 16;
+			snake[i].y = 32;
 			fill_Rectangle(snake[i].x,snake[i].y,snake[i].x+1,snake[i].y+1,FG_COLOR,BG_COLOR);
 			//x0 y0 x1 y1
 		}
@@ -237,6 +251,7 @@ int32_t main(void)
 				move_snake();
 			}
 			CLK_SysTickDelay(3000);//0.03
+			
     }
 }
 //joystick up y to 0,down y to 4096,left x to 0,right x to 4096
