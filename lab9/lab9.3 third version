@@ -17,6 +17,8 @@ volatile uint8_t u8ADF;
 volatile uint16_t X, Y;
 //volatile uint8_t  B;
 
+//§Q¥Î¤¤Â_¨Ó§ïÅÜ¼Æªº­È ¦¹ÅÜ¼Æ¤@©w­n³]volatile 
+
 typedef struct
 {
 	int x,y;
@@ -24,9 +26,10 @@ typedef struct
 
 Cell snake[64];
 int snake_len = 16;
-int dirx=0,diry=0,moveflag = 0,gameover = 0,food_x,food_y,score=0;
-
-int digit3=0,digit2=0,digit1=0,digit0=0;
+int dirx=0,diry=0,moveflag = 0,gameover = 0;
+int blocked = 0;
+int last_dirx = 0, last_diry = 0,score=0;
+int food_x,food_y;
 
 void Init_GPIO(void)
 {
@@ -90,51 +93,51 @@ void test()
 	print_Line(1,buffer);
 }
 
+
 void update_direction()
 {
-	//prediction:dirx,diry direction:dx,dy
-	int dx = X-2048;
-	int dy = Y-2048;
-	int threshold = 300;
-	
-	if(abs(dx) < threshold && abs(dy) < threshold)
-			return;
-	
-	if(dirx>0 && dx<0)
-		return;
-	if(dirx<0 && dx>0)
-		return;
-	if(diry>0 && dy<0)
-		return;
-	if(diry<0 && dy>0)
-		return;
-	
-	//only way to change dirx,diry
-	if(abs(dx)>abs(dy))
-	{
-		moveflag = 0;
-		if(dx>0 && dirx != -2)
-		{
-			dirx = 2;diry=0;
-		}
-		else if(dx<0 && dirx!=2)
-		{
-			dirx = -2;diry=0;
-		}
-	}
-	else
-	{
-		moveflag = 0;
-		if(dy>0 && diry!=-2)
-		{
-			dirx = 0;diry = 2;
-		}
-		else if(dy<0 && diry!=2)
-		{
-			dirx = 0;diry = -2;
-		}
-	}
+    int dx = (int)X - 2048;
+    int dy = (int)Y - 2048;
+    int threshold = 600;
+    int ndx = 0, ndy = 0;
+
+    // ???????:????,?????
+    if (abs(dx) < threshold && abs(dy) < threshold)
+        return;
+
+    // ?????????????(ndx, ndy)
+    if (abs(dx) >= abs(dy))
+    {
+        // ????
+        ndx = (dx > 0) ? 2 : -2;
+        ndy = 0;
+    }
+    else
+    {
+        // ????
+        ndx = 0;
+        ndy = (dy > 0) ? 2 : -2;
+    }
+
+    // ????????(?????):??????
+    if (dirx == 0 && diry == 0)
+    {
+        dirx = ndx;
+        diry = ndy;
+        return;
+    }
+
+    // ??????????????????? ? ??,????? dirx/diry
+    if (ndx == -dirx && ndy == -diry)
+    {
+        return;
+    }
+
+    // ????:????
+    dirx = ndx;
+    diry = ndy;
 }
+
 
 void generate_food()
 {
@@ -161,63 +164,81 @@ void generate_food()
 
 void move_snake()
 {
-	int nx,ny,tailx,taily,i;
-	int dx = X-2048;
-	int dy = Y-2048;
-	int threshold = 300;
-	
-	if(gameover)
-			return;
-	
-	nx = snake[0].x + dirx;
-	ny = snake[0].y + diry;
-	if(nx>126 || nx<0 || ny > 62 || ny < 0)
-		return;
-	
-	if(nx==food_x && nx==food_y)
-	{
-		fill_Rectangle(food_x,food_y,food_x+1,food_y+1,BG_COLOR,BG_COLOR);
-		score+=10;
-		snake_len++;
-		
-		for(i=snake_len-1;i>0;i--)
-			snake[i] = snake[i-1];
-		
-		snake[0].x = nx;
-		snake[0].y = ny;
-		
-		fill_Rectangle(nx,ny,nx+1,ny+1,FG_COLOR,BG_COLOR);
-		generate_food();
-		return;
-	}
-	
-	for(i=0;i<snake_len;i++)
-	{
-		if(snake[i].x == nx && snake[i].y == ny)
+    int nx, ny, tailx, taily, i;
+
+    if(gameover) 
 		{
-			gameover = 1;
+			print_Line(0,"hello world");
 			return;
 		}
-	}
+
+		// dir=0 => ????
+		if(dirx==0 && diry==0)
+				return;
+
+		
+
+    // ???????????????
+    nx = snake[0].x + dirx;
+    ny = snake[0].y + diry;
+
+    // ????:???????? gameover
+    if (nx > 126 || nx < 0 || ny > 62 || ny < 0)
+    {
+        // ???????????:
+        // gameover = 1;
+        return;
+    }
 	
-	tailx = snake[snake_len - 1].x;
-  taily = snake[snake_len - 1].y;
-    
-	for (i = snake_len - 1; i > 0; i--)
-			snake[i] = snake[i - 1];
-    
-	snake[0].x = nx;
-	snake[0].y = ny;
-	
-	fill_Rectangle(nx, ny, nx + 1, ny + 1, FG_COLOR, BG_COLOR);
-	fill_Rectangle(tailx, taily, tailx + 1, taily + 1, BG_COLOR, BG_COLOR);
+		if(nx==food_x && ny==food_y)
+		{
+			fill_Rectangle(food_x,food_y,food_x+1,food_y+1,BG_COLOR,BG_COLOR);
+			score+=10;
+			snake_len++;
+			
+			for(i=snake_len-1;i>0;i--)
+				snake[i] = snake[i-1];
+			
+			snake[0].x = nx;
+			snake[0].y = ny;
+			
+			fill_Rectangle(nx,ny,nx+1,ny+1,FG_COLOR,BG_COLOR);
+			generate_food();
+			return;
+		}
+		
+    // ????:???? 1 ?????(0 ??)
+    for (i = 1; i < snake_len; i++)
+    {
+        if (snake[i].x == nx && snake[i].y == ny)
+        {
+            gameover = 1;
+            return;
+        }
+    }
+
+    // ???????,????
+    tailx = snake[snake_len - 1].x;
+    taily = snake[snake_len - 1].y;
+
+    // ???????????
+    for (i = snake_len - 1; i > 0; i--)
+        snake[i] = snake[i - 1];
+
+    // ??????
+    snake[0].x = nx;
+    snake[0].y = ny;
+
+    // ???????????
+    fill_Rectangle(nx, ny, nx + 1, ny + 1, FG_COLOR, BG_COLOR);
+    fill_Rectangle(tailx, taily, tailx + 1, taily + 1, BG_COLOR, BG_COLOR);
 }
 
 void show_7seg(int i,int score);
 
 void Init_Timer1(void)
 {
-  TIMER_Open(TIMER1, TMR1_OPERATING_MODE, 20);
+  TIMER_Open(TIMER1, TMR1_OPERATING_MODE, 200);
   TIMER_EnableInt(TIMER1);
   NVIC_EnableIRQ(TMR1_IRQn);
   TIMER_Start(TIMER1);
@@ -225,70 +246,75 @@ void Init_Timer1(void)
 
 void TMR1_IRQHandler(void)
 {	
-	static int num = 3;
-	show_7seg(num,score);
-	num = (num+1)%4;
-  TIMER_ClearIntFlag(TIMER1); // Clear Timer1 time-out interrupt flag
+    static int num = 3;   
+    show_7seg(num, score);
+
+    num--;                
+    if (num < 0)
+        num = 3;          
+
+    TIMER_ClearIntFlag(TIMER1);
 }
 
-int32_t main (void)
+int32_t main(void)
 {
-		int i,mod=25;
-		uint16_t counter = 0;
-    SYS_Init();
-		Init_GPIO();
+		int i,counter=0;
+    Init_GPIO();
+		SYS_Init();
 		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
 		OpenSevenSegment();
 		CloseSevenSegment();
 		init_LCD();
 		clear_LCD();
 		OpenKeyPad();
-    Init_ADC(); 
-    GPIO_SetMode(PC, BIT0, GPIO_MODE_INPUT); // set PC0 input for button
-		Init_Timer1();
-		
+		Init_ADC();
+    Init_Timer1();
 		for(i=0;i<snake_len;i++)
 		{
 			snake[i].x = 46-i*2;
-			snake[i].y = 16;
+			snake[i].y = 32;
 			fill_Rectangle(snake[i].x,snake[i].y,snake[i].x+1,snake[i].y+1,FG_COLOR,BG_COLOR);
 			//x0 y0 x1 y1
 		}
 		generate_food();
-	
     while(1){
       //test();
-			srand(counter++);
+			ADC_START_CONV(ADC);	
+			counter = (counter+1)%25;
 			update_direction();
-			if((counter%mod) == 24)
+			if(counter == 24)
 			{
 				move_snake();
 			}
+			CLK_SysTickDelay(3000);
 			
-			CLK_SysTickDelay(3000);//0.03
     }
 }
 
 void show_7seg(int i,int score)
 {
-	static int leading = 1;
-	int data[4];
-	data[3] = score/1000;
-	score%=1000;
-	data[2] = score/100;
-	score%=100;
-	data[1] = score/10;
-	score%=10;
-	data[0] = score;
-	if(i==3)
-		leading = 1;
-	
-	if(data[i]==0 && (i!=0 && leading))
-		return;
-	else
-	{
-		leading = 0;
-		CloseSevenSegment();
-		ShowSevenSegment(i,data[i]);
-	}
+    static int leading = 1;
+    int data[4];
+
+    data[3] = score/1000;
+    data[2] = (score/100)%10;
+    data[1] = (score/10)%10;
+    data[0] = score%10;
+
+    if(i == 3)
+        leading = 1;
+
+    CloseSevenSegment();
+
+    if(data[i] == 0 && leading && i != 0)
+    {
+        CloseSevenSegment();   // <<<<<< ?????? ??
+        return;
+    }
+
+    leading = 0;
+    ShowSevenSegment(i, data[i]);
 }
+
+
+//joystick up y to 0,down y to 4096,left x to 0,right x to 4096
