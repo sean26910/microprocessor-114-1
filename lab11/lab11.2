@@ -1,0 +1,195 @@
+//
+// PWM_Music : PWM0 Ch0 (PA12) output music "Fur Elise"
+//
+// EVB : Nu-LB-NUC140
+// MCU : NUC140VE3CN  (LQPF-100)
+// Buzzer: used as speaker
+
+// PA12/PWM0 connected to PB11
+#include <stdio.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "Note_Freq.h"
+#include "LCD.h"
+#include "Scankey.h"
+
+#define  P125ms 125000
+#define  P250ms 250000
+#define  P500ms 500000
+#define  P1S   1000000
+#define offset 30
+//30 smallest can hear
+volatile uint32_t u32value = 0,size=0;
+
+uint16_t music_elise[72] = {
+	E6 ,D6u,E6 ,D6u,E6 ,B5 ,D6 ,C6 ,A5 ,A5 , 0 , 0 ,
+	C5 ,E5 ,A5 ,B5 ,B5 , 0 ,C5 ,A5 ,B5 ,C6 ,C6 , 0 ,
+	E6 ,D6u,E6 ,D6u,E6 ,B5 ,D6 ,C6 ,A5 ,A5 , 0 , 0 ,
+	C5 ,E5 ,A5 ,B5 ,B5 , 0 ,E5 ,C6 ,B5 ,A5 ,A5 , 0 ,
+	B5 ,C6 ,D6 ,E6 ,E6 , 0 ,G5 ,F6 ,E6 ,D6 ,D6 , 0 ,
+	F5 ,E6 ,D6 ,C6 ,C6 , 0 ,E5 ,D6 ,C6 ,B5 ,B5 , 0 };
+	
+  uint32_t pitch_elise[72] = {
+	P250ms, P250ms, P250ms, P250ms,	P250ms, P250ms, P250ms, P250ms,	P250ms, P250ms, P250ms, P250ms,
+	P250ms, P250ms, P250ms, P250ms,	P250ms, P250ms, P250ms, P250ms,	P250ms, P250ms, P250ms, P250ms,
+	P250ms, P250ms, P250ms, P250ms,	P250ms, P250ms, P250ms, P250ms,	P250ms, P250ms, P250ms, P250ms,
+	P500ms, P500ms, P500ms, P500ms,	P500ms, P500ms, P500ms, P500ms,	P500ms, P500ms, P500ms, P500ms,
+	P500ms, P500ms, P500ms, P500ms,	P500ms, P500ms, P500ms, P500ms,	P500ms, P500ms, P500ms, P500ms,
+	P500ms, P500ms, P500ms, P500ms,	P500ms, P500ms, P500ms, P500ms,	P500ms, P500ms, P500ms, P500ms
+	};
+	//c5:do d5:re e5:mi f5:fa g5:so a5:la b5:si
+	uint16_t music_star[84]={
+	C5,0,C5,0,G5,0,G5,0,A5,0,A5,0,G5,0,F5,0,F5,0,E5,0,E5,0,D5,0,D5,0,C5,0
+	,G5,0,G5,0,F5,0,F5,0,E5,0,E5,0,D5,0,G5,0,G5,0,F5,0,F5,0,E5,0,E5,0,D5,0
+	,C5,0,C5,0,G5,0,G5,0,A5,0,A5,0,G5,0,F5,0,F5,0,E5,0,E5,0,D5,0,D5,0,C5,0};
+		
+	uint32_t pitch_star[84] = {
+    // C C G G A A G
+    P250ms, P250ms,  // C5, 0
+    P250ms, P250ms,  // C5, 0
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // A5, 0
+    P250ms, P250ms,  // A5, 0
+    P500ms, P500ms,  // G5, 0  
+
+    // F F E E D D C
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // E5, 0
+    P250ms, P250ms,  // E5, 0
+    P250ms, P250ms,  // D5, 0
+    P250ms, P250ms,  // D5, 0
+    P500ms, P500ms,  // C5, 0  
+
+    // G G F F E E D
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // E5, 0
+    P250ms, P250ms,  // E5, 0
+    P500ms, P500ms,  // D5, 0  
+
+    // G G F F E E D
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // E5, 0
+    P250ms, P250ms,  // E5, 0
+    P500ms, P500ms,  // D5, 0  
+
+    // C C G G A A G
+    P250ms, P250ms,  // C5, 0
+    P250ms, P250ms,  // C5, 0
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // G5, 0
+    P250ms, P250ms,  // A5, 0
+    P250ms, P250ms,  // A5, 0
+    P500ms, P500ms,  // G5, 0  
+
+    // F F E E D D C
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // F5, 0
+    P250ms, P250ms,  // E5, 0
+    P250ms, P250ms,  // E5, 0
+    P250ms, P250ms,  // D5, 0
+    P250ms, P250ms,  // D5, 0
+    P500ms, P500ms   // C5, 0  
+	};
+
+void Init_ADC(void)
+{
+    ADC_Open(ADC, ADC_INPUT_MODE, ADC_OPERATION_MODE, ADC_CHANNEL_MASK);
+    ADC_POWER_ON(ADC);
+    ADC_EnableInt(ADC, ADC_ADF_INT);
+    NVIC_EnableIRQ(ADC_IRQn);
+		ADC_START_CONV(ADC);
+}
+
+void ADC_IRQHandler(void)
+{
+    uint32_t u32Flag;
+
+    // Get ADC conversion finish interrupt flag
+    u32Flag = ADC_GET_INT_FLAG(ADC, ADC_ADF_INT);
+
+    if(u32Flag & ADC_ADF_INT)
+		{
+        u32value = ADC_GET_CONVERSION_DATA(ADC,7);
+				size = u32value*70/4095+30;
+		}
+    ADC_CLR_INT_FLAG(ADC, u32Flag);
+}
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+//¤@©ç=¥|¤À­µ²Å=250MS,¤G¤À¬O500
+
+int32_t main (void)
+{
+  uint8_t i;
+	int key=0;
+	char buffer[128];
+	
+	
+  SYS_Init();
+	OpenKeyPad();
+	//GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
+	Init_ADC();
+	init_LCD();
+	clear_LCD();
+	
+	
+	PWM_DisableOutput(PWM0, PWM_CH_0_MASK);
+	//PWM_EnableOutput(PWM0, PWM_CH_0_MASK);
+	PWM_Start(PWM0, PWM_CH_0_MASK);
+		
+	while(1)
+	{	
+		key = key_release();
+		sprintf(buffer,"number is %d",key);
+		printS(0,0,buffer);
+		if(key==5)
+		{
+			
+			PWM_EnableOutput(PWM0, PWM_CH_0_MASK);
+			for (i=0; i<84; i++) {
+				
+				PWM_ConfigOutputChannel(PWM0, PWM_CH0, music_star[i], size); // 0=Buzzer ON
+				if (music_star[i]!=0) PWM_EnableOutput(PWM0, PWM_CH_0_MASK);
+				else             PWM_DisableOutput(PWM0, PWM_CH_0_MASK);
+				CLK_SysTickDelay(pitch_star[i]);
+			}
+			PWM_DisableOutput(PWM0, PWM_CH_0_MASK);
+		}
+		
+		if(key==6)
+		{
+			PWM_EnableOutput(PWM0, PWM_CH_0_MASK);
+			for (i=0; i<72; i++) {
+				
+				PWM_ConfigOutputChannel(PWM0, PWM_CH0, music_elise[i], size); // 0=Buzzer ON
+				if (music_elise[i]!=0) PWM_EnableOutput(PWM0, PWM_CH_0_MASK);
+				else             PWM_DisableOutput(PWM0, PWM_CH_0_MASK);
+				CLK_SysTickDelay(pitch_elise[i]);
+			}
+			PWM_DisableOutput(PWM0, PWM_CH_0_MASK);
+		}
+		
+	}
+}
