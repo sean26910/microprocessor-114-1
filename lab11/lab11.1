@@ -14,15 +14,21 @@
 #define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
 #define L_BAR_X 0 // Left-Bar  X-position
 #define PI 3.1415926
-#define X0 64
+#define X0 84
 #define Y0 32
 #define SEC_R 20
 #define MIN_R 10
 
-volatile uint16_t mode=0,old_x, old_y, new_x, new_y;
-volatile uint16_t old_minx, old_miny, new_minx, new_miny;
+
+enum State{set,run};
+
+volatile enum State st=run;
+
+volatile uint32_t sec=0,min=0,sec_tick=0,flag=1;
+volatile uint16_t old_x=X0, old_y=Y0;
+volatile uint16_t old_minx=X0, old_miny=Y0;
+
 volatile uint16_t my_min=0,my_sec=0;
-uint16_t theta=0,offseting=25;
 
 unsigned char bmp_Clock[64*8]= 
 {
@@ -54,34 +60,64 @@ void Init_GPIO(void)
 
 void RTC_IRQHandler(void)
 {
-		RTC_CLEAR_TICK_INT_FLAG();
-	  S_RTC_TIME_DATA_T sCurTime;
-    RTC_GetDateAndTime(&sCurTime);	// get current time
-    theta = sCurTime.u32Second *6;
+		uint16_t theta_sec,theta_min,newx=X0,newy=Y0,new_minx=X0,new_miny=Y0,i;
+		if(st==run)
+		{
+			sec_tick++;
+			if(sec_tick>=8)
+			{
+				sec = (sec+1)%60;
+				sec_tick=0;
+				if(sec%15==0)
+					min = (min+1)%12;
+			}											
+		}
+
+		theta_sec = (sec*6+90)%360;
+		theta_min = (min*30+90)%360;
 	
-		my_sec = sCurTime.u32Second;
-		my_min = (theta/15);
-    //------------drawing clock pointer---------------
-    if (theta>=360) theta=0;
-		if(my_min>=12)	my_min=0;
+		newx = X0 - (SEC_R-2)*cos(theta_sec*PI/180);
+		newy = Y0 - (SEC_R-2)*sin(theta_sec*PI/180);
 	
-    new_x = X0+offseting - (SEC_R-2) * cos(theta * PI/180);
-    new_y = Y0+offseting - (SEC_R-2) * sin(theta * PI/180);
-		new_minx = X0+offseting - (MIN_R-2) * cos((my_min*30)*PI/180);
-		new_miny = Y0+offseting - (MIN_R-2) * sin((my_min*30)*PI/180);
-	
-    draw_Line(old_x,old_y,X0,Y0,BG_COLOR, BG_COLOR);
-		draw_Line(old_minx,old_miny,X0,Y0,BG_COLOR, BG_COLOR);
+		new_minx = X0 - (MIN_R-2)*cos(theta_min*PI/180);
+		new_miny = Y0 - (MIN_R-2)*sin(theta_min*PI/180);
+    
+		draw_Line(old_x,old_y,X0,Y0,BG_COLOR,BG_COLOR);
+		draw_Line(newx,newy,X0,Y0,FG_COLOR,BG_COLOR);
 		
-    draw_Line(new_minx,new_miny,X0,Y0,FG_COLOR, BG_COLOR);
-		draw_Line(new_x,new_y,X0,Y0,FG_COLOR, BG_COLOR);
-	
-    old_x = new_x;
-    old_y = new_y;
-		old_minx = new_minx;
-		old_miny = new_miny;
-    //------------------------------------------------
-	
+		draw_Line(old_minx,old_miny,X0,Y0,BG_COLOR,BG_COLOR);
+		draw_Line(new_minx,new_miny,X0,Y0,FG_COLOR,BG_COLOR);
+		
+		old_x = newx; old_y = newy; old_minx = new_minx;old_miny=new_miny;
+		RTC_CLEAR_TICK_INT_FLAG();	
+}
+
+void Init_EXTINT(void)
+{
+	  // Configure EINT1 pin and enable interrupt by rising and falling edge trigger
+    GPIO_SetMode(PB, BIT15, GPIO_MODE_INPUT);
+    GPIO_EnableEINT1(PB, 15, GPIO_INT_RISING); // RISING, FALLING, BOTH_EDGE, HIGH, LOW
+    NVIC_EnableIRQ(EINT1_IRQn);
+
+    // Enable interrupt de-bounce function and select de-bounce sampling cycle time
+    GPIO_SET_DEBOUNCE_TIME(GPIO_DBCLKSRC_LIRC, GPIO_DBCLKSEL_64);
+    GPIO_ENABLE_DEBOUNCE(PB, BIT15);
+}
+
+void EINT1_IRQHandler(void)
+{
+	GPIO_CLR_INT_FLAG(PB,BIT15);
+    if(st==run)
+		{
+			st = set;
+			PC12=0;
+		}
+		else
+		{
+			sec_tick = 0;
+			PC12=1;
+			st = run;
+		}
 }
 
 void Init_RTC(void)
@@ -99,7 +135,7 @@ void Init_RTC(void)
     sInitTime.u32TimeScale  = RTC_CLOCK_24;
 
     RTC_Open(&sInitTime);
-    RTC_SetTickPeriod(RTC_TICK_1_SEC);
+    RTC_SetTickPeriod(RTC_TICK_1_8_SEC);
     RTC_EnableInt(RTC_RIER_TIER_Msk);
     NVIC_EnableIRQ(RTC_IRQn);		  
 }
@@ -120,23 +156,58 @@ int key_release(void)
 
 int32_t main()
 {	
-		int key;
-	
-		
+		int key,x_cord=52,mode=0;
+		char buffer[128];
     Init_GPIO();
 		SYS_Init();
-		GPIO_SetMode(PB, BIT11, GPIO_MODE_OUTPUT);
-		OpenSevenSegment();
-		CloseSevenSegment();
 		init_LCD();
 		clear_LCD();
 		OpenKeyPad();
-	
-		draw_Bmp64x64(32+offseting,0,FG_COLOR,BG_COLOR,bmp_Clock);
-		
+		Init_EXTINT();
+		Init_RTC();
+		draw_Bmp64x64(x_cord,0,FG_COLOR,BG_COLOR,bmp_Clock);
     while(1)
 		{
 			key = key_release();
+			sprintf(buffer,"%02d:%02d",min,sec);
+			printS(0,25,buffer);
 			
+			if(st==set)
+			{
+				if(key==1)
+					mode=0;
+				else if(key==2)
+					mode=1;
+				switch(key)
+				{
+					case 4:
+						if(mode==0)
+							min = (min+5)%12;
+						else
+							sec = (sec+5)%60;
+						break;
+					case 5:
+						if(mode==0)
+							min = (min+10)%12;
+						else
+							sec = (sec+10)%60;
+						break;
+					case 7:
+						if(mode==0)
+							min = (min+7)%12;
+						else 
+							sec = (sec+55)%60;
+						break;
+					case 8:
+						if(mode==0)
+							min = (min+2)%12;
+						else
+							sec = (sec + 50) % 60;
+						break;
+				}
+			}
+			CLK_SysTickDelay(2000);
 		}
 }
+//¥Ø«e³]­p ¨C15ªº­¿¼Æ¸õ¤@®æ
+//§U±Ð¥i¯à­nªº ¯uªº15¬í¸õ¤@®æ ¨º´N»Ý­n¦h¤@­Ócounter¨Ó°O¿ý¥Ø«e¶]¤F´X¬í¡Acounter = counter+1 % 15;
