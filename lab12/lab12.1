@@ -1,0 +1,222 @@
+//
+// GPIO_7seg : counting from 0 to 9999 and display on 7-segment LEDs
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include "NUC100Series.h"
+#include "MCU_init.h"
+#include "SYS_init.h"
+#include "LCD.h"
+#include "Scankey.h"
+#include "Seven_Segment.h"
+#include "Draw2D.h"
+#include <string.h>
+#include "math.h"
+#define R_BAR_X LCD_Xmax-1 // Right-Bar X-position
+#define L_BAR_X 0 // Left-Bar  X-position
+#define PI 3.1415926
+#define X0 84
+#define Y0 32
+#define SEC_R 20
+#define MIN_R 10
+
+volatile int receive_data[6],numindex=0,compare=0;
+volatile int mynumber[4];
+
+void Init_UART1(void)
+{
+	UART_Open(UART1,115200);
+	UART_ENABLE_INT(UART1,UART_IER_RDA_IEN_Msk);
+	NVIC_EnableIRQ(UART1_IRQn);
+}
+
+void UART1_IRQHandler(void)
+{
+	uint8_t c,i;
+	uint32_t u32IntSts = UART1->ISR;
+	
+	if(u32IntSts & UART_IS_RX_READY(UART1))
+	{
+		if(numindex<4)
+		{
+			c = UART_READ(UART1);
+			receive_data[numindex++] = (c-0x30);
+		}
+		
+		if(numindex>=4)
+		{
+			numindex = 0;
+			compare = 1;
+		}
+	}
+
+}
+
+void show_7seg(int i,int score);
+
+void Init_Timer1(void)
+{
+  TIMER_Open(TIMER1, TMR1_OPERATING_MODE, 20);
+  TIMER_EnableInt(TIMER1);
+  NVIC_EnableIRQ(TMR1_IRQn);
+  TIMER_Start(TIMER1);
+}
+
+void TMR1_IRQHandler(void)
+{	
+	static int num = 3;
+	//show 7seg
+	show_7seg(num,mynumber[num]);
+	num = (num+1)%4;
+  TIMER_ClearIntFlag(TIMER1); // Clear Timer1 time-out interrupt flag
+}
+
+void Init_GPIO(void)
+{
+	GPIO_SetMode(PA, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PA, BIT14, GPIO_MODE_OUTPUT);
+	PA12=1;
+	PA13=1;
+	PA14=1;
+	
+	GPIO_SetMode(PC, BIT12, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT13, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT14, GPIO_MODE_OUTPUT);
+	GPIO_SetMode(PC, BIT15, GPIO_MODE_OUTPUT);
+	PC12=1;PC13=1;PC14=1;PC15=1;
+}
+
+
+int key_release(void)
+{
+		static int prekey = 0;
+		int presentkey = 0,result = 0;
+		presentkey = ScanKey();
+		CLK_SysTickDelay(1000);
+		if(prekey!=0 && presentkey==0)
+			result = prekey;
+		else
+			result = 0;
+		prekey = presentkey;
+		return result;
+}
+
+void randnumber(void)
+{
+	mynumber[0] = (rand()%9)+1;
+	mynumber[1] = (rand()%9)+1;
+	mynumber[2] = (rand()%9)+1;
+	mynumber[3] = (rand()%9)+1;
+}
+
+int32_t main()
+{		
+		char buffer1[20],buffer2[20],buffer3[20],buffer4[20];
+		uint8_t key,data,line=0,countera=0,counterb=0,i,j;
+		uint32_t counter=0;
+	
+    Init_GPIO();
+		SYS_Init();
+		init_LCD();
+		clear_LCD();
+		OpenKeyPad();
+		randnumber();
+		Init_Timer1();
+		
+    while(1)
+		{
+			srand(counter++);
+			key = key_release();
+			
+			if(key!=0)
+			{
+				data = key+0x30;
+				UART_Write(UART1,&data,1);
+			}
+			
+			if(compare)
+			{
+				countera=0;
+				counterb=0;
+				//ab compare
+				for(i=0;i<4;i++)
+				{
+					for(j=0;j<4;j++)
+					{
+						if(mynumber[i] == receive_data[j])
+						{
+							if(i==j)
+								countera++;
+							else
+								counterb++;
+						}
+					}
+				}
+				
+				if(line<4)
+				{
+					switch(line)
+					{
+						case 0:
+							sprintf(buffer1,"%d%d%d%d %dA%dB ",receive_data[0],receive_data[1],receive_data[2],receive_data[3],countera,counterb);
+							print_Line(0,buffer1);
+							break;
+						case 1:
+							sprintf(buffer2,"%d%d%d%d %dA%dB ",receive_data[0],receive_data[1],receive_data[2],receive_data[3],countera,counterb);
+							print_Line(1,buffer2);
+							break;
+						case 2:
+							sprintf(buffer3,"%d%d%d%d %dA%dB ",receive_data[0],receive_data[1],receive_data[2],receive_data[3],countera,counterb);
+							print_Line(2,buffer3);
+							break;
+						case 3:
+							sprintf(buffer4,"%d%d%d%d %dA%dB ",receive_data[0],receive_data[1],receive_data[2],receive_data[3],countera,counterb);
+							print_Line(3,buffer4);
+							break;
+					}
+					line++;
+				}
+				else
+				{
+					strcpy(buffer1,buffer2);
+					strcpy(buffer2,buffer3);
+					strcpy(buffer3,buffer4);
+					sprintf(buffer4,"%d%d%d%d %dA%dB ",receive_data[0],receive_data[1],receive_data[2],receive_data[3],countera,counterb);
+					
+					clear_LCD();
+					print_Line(0,buffer1);
+					print_Line(1,buffer2);
+					print_Line(2,buffer3);
+					print_Line(3,buffer4);
+				}
+				
+				compare = 0;
+			}
+			CLK_SysTickDelay(2000);
+		}
+}
+
+void show_7seg(int i,int score)
+{
+	static int leading = 1;
+	int data[4];
+	data[3] = score/1000;
+	score%=1000;
+	data[2] = score/100;
+	score%=100;
+	data[1] = score/10;
+	score%=10;
+	data[0] = score;
+	if(i==3)
+		leading = 1;
+	
+	if(data[i]==0 && (i!=0 && leading))
+		return;
+	else
+	{
+		leading = 0;
+		CloseSevenSegment();
+		ShowSevenSegment(i,data[i]);
+	}
+}
