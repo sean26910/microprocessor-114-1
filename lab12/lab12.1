@@ -56,7 +56,7 @@ void show_7seg(int i,int score);
 
 void Init_Timer1(void)
 {
-  TIMER_Open(TIMER1, TMR1_OPERATING_MODE, 20);
+  TIMER_Open(TIMER1, TMR1_OPERATING_MODE, 200);
   TIMER_EnableInt(TIMER1);
   NVIC_EnableIRQ(TMR1_IRQn);
   TIMER_Start(TIMER1);
@@ -67,7 +67,9 @@ void TMR1_IRQHandler(void)
 	static int num = 3;
 	//show 7seg
 	show_7seg(num,mynumber[num]);
-	num = (num+1)%4;
+	num--;
+	if(num<0)
+		num = 3;
   TIMER_ClearIntFlag(TIMER1); // Clear Timer1 time-out interrupt flag
 }
 
@@ -121,9 +123,10 @@ int32_t main()
 		init_LCD();
 		clear_LCD();
 		OpenKeyPad();
-		randnumber();
+		//randnumber();
 		Init_Timer1();
-		
+		Init_UART1();
+		 mynumber[0]=1; mynumber[1]=2; mynumber[2]=3; mynumber[3]=4;
     while(1)
 		{
 			srand(counter++);
@@ -199,7 +202,8 @@ int32_t main()
 
 void show_7seg(int i,int score)
 {
-	static int leading = 1;
+	//static int leading = 1;
+	/*
 	int data[4];
 	data[3] = score/1000;
 	score%=1000;
@@ -208,15 +212,18 @@ void show_7seg(int i,int score)
 	data[1] = score/10;
 	score%=10;
 	data[0] = score;
+	
 	if(i==3)
 		leading = 1;
 	
-	if(data[i]==0 && (i!=0 && leading))
+	//if(data[i]==0 && (i!=0 && leading))
+	if(score==0 && (i!=0 && leading))
 		return;
 	else
 	{
 		leading = 0;
-		CloseSevenSegment();
-		ShowSevenSegment(i,data[i]);
 	}
+	*/
+	CloseSevenSegment();
+	ShowSevenSegment(i,score);
 }
