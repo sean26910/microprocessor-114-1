@@ -32,25 +32,33 @@ void Init_UART1(void)
 
 void UART1_IRQHandler(void)
 {
-	uint8_t c,i;
-	uint32_t u32IntSts = UART1->ISR;
-	
-	if(u32IntSts & UART_IS_RX_READY(UART1))
-	{
-		if(numindex<4)
-		{
-			c = UART_READ(UART1);
-			receive_data[numindex++] = (c-0x30);
-		}
+    uint32_t status = UART1->ISR;
 		
-		if(numindex>=4)
-		{
-			numindex = 0;
-			compare = 1;
-		}
-	}
+		if(compare)
+			return;
+	
+    if (status & UART_IS_RX_READY(UART1))
+    {
+        while (UART_IS_RX_READY(UART1))
+        {
+            char c = UART_READ(UART1);
 
+            
+            if (c < '1' || c > '9')
+                continue;
+
+            receive_data[numindex++] = c - '0';
+
+            if (numindex == 4)
+            {
+                numindex = 0;
+                compare = 1;   
+								//UART_DISABLE_INT(UART1,UART_IER_RDA_IEN_Msk);
+            }
+        }
+    }
 }
+
 
 void show_7seg(int i,int score);
 
@@ -193,7 +201,7 @@ int32_t main()
 					print_Line(2,buffer3);
 					print_Line(3,buffer4);
 				}
-				
+				//UART_ENABLE_INT(UART1,UART_IER_RDA_IEN_Msk);
 				compare = 0;
 			}
 			CLK_SysTickDelay(2000);
